@@ -13,6 +13,7 @@ import {
   import { logoIonic } from 'ionicons/icons';
   import { useState } from 'react';
   import { supabase } from '../utils/supabaseClient';
+  import L from 'leaflet';
   
   const AlertBox: React.FC<{ message: string; isOpen: boolean; onClose: () => void }> = ({ message, isOpen, onClose }) => {
     return (
@@ -43,12 +44,19 @@ import {
         return;
       }
   
+      // Fetch user avatar after successful login (if needed elsewhere)
+      // const { data: userData } = await supabase
+      //   .from('users')
+      //   .select('user_avatar_url')
+      //   .eq('user_email', email)
+      //   .single();
+  
       setShowToast(true); 
       setTimeout(() => {
         navigation.push('/landlord/app', 'forward', 'replace');
       }, 300);
     };
-    
+  
     return (
       <IonPage>
         <IonContent className='ion-padding'>
@@ -102,10 +110,6 @@ import {
           </div>
           <IonButton onClick={doLogin} expand="full" shape='round'>
             Login
-          </IonButton>
-  
-          <IonButton routerLink="/landlord/register" expand="full" fill="clear" shape='round'>
-            Don't have an account? Register here
           </IonButton>
   
           {/* Reusable AlertBox Component */}

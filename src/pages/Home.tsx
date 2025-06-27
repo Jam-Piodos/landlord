@@ -6,9 +6,12 @@ import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import { useEffect, useState } from 'react';
 import MarkerClusterGroup from 'react-leaflet-markercluster';
+import L from 'leaflet';
+import { supabase } from '../utils/supabaseClient';
 
 const Home: React.FC = () => {
   const [position, setPosition] = useState<[number, number] | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -23,7 +26,29 @@ const Home: React.FC = () => {
         { enableHighAccuracy: true }
       );
     }
+    // Fetch user avatar from Supabase
+    const fetchAvatar = async () => {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.email) {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('user_avatar_url')
+          .eq('user_email', authData.user.email)
+          .single();
+        setAvatarUrl(userData?.user_avatar_url || null);
+      }
+    };
+    fetchAvatar();
   }, []);
+
+  // Always provide a valid icon, fallback to favicon if no avatar
+  const userIcon = L.icon({
+    iconUrl: avatarUrl || '/favicon.png',
+    iconSize: [48, 48],
+    iconAnchor: [24, 48],
+    popupAnchor: [0, -48],
+    className: 'user-avatar-marker',
+  });
 
   return (
     <IonPage>
@@ -39,10 +64,10 @@ const Home: React.FC = () => {
               url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
               attribution='Landlord &copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
             />
-            <Marker position={position} />
+            <Marker position={position} icon={userIcon} />
             <Circle center={position} radius={10} pathOptions={{ color: 'blue', fillColor: 'blue', fillOpacity: 0.3 }} />
             <MarkerClusterGroup>
-              {position && <Marker position={position} />}
+              {position && <Marker position={position} icon={userIcon} />}
             </MarkerClusterGroup>
             {/* Polygon drawing will go here */}
           </MapContainer>
