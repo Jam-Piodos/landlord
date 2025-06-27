@@ -1,0 +1,7 @@
+{
+  "name": "landlord",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "react-vite"
+}
