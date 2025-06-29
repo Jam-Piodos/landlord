@@ -63,7 +63,7 @@ const FeedContainer = () => {
       return;
     }
   
-    const avatarUrl = userData?.user_avatar_url || 'https://ionicframework.com/docs/img/demos/avatar.svg';
+    const avatarUrl = userData?.user_avatar_url || '/default-avatar.png';
   
     // Insert post with avatar URL
     const { data, error } = await supabase

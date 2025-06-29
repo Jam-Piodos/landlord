@@ -186,7 +186,7 @@ const EditAccount: React.FC = () => {
               <IonCol className="ion-text-center">
                 {avatarPreview && (
                   <IonAvatar style={{ width: '200px', height: '200px', margin: '10px auto' }}>
-                    <IonImg src={avatarPreview} style={{ objectFit: 'cover' }} />
+                    <IonImg src={avatarPreview || '/default-avatar.png'} />
                   </IonAvatar>
                 )}
   

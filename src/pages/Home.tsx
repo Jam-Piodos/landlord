@@ -43,7 +43,7 @@ const Home: React.FC = () => {
 
   // Always provide a valid icon, fallback to favicon if no avatar
   const userIcon = L.icon({
-    iconUrl: avatarUrl || '/favicon.png',
+    iconUrl: avatarUrl || '/default-avatar.png',
     iconSize: [48, 48],
     iconAnchor: [24, 48],
     popupAnchor: [0, -48],
@@ -62,7 +62,7 @@ const Home: React.FC = () => {
           <MapContainer center={position} zoom={18} style={{ height: '80vh' }}>
             <TileLayer
               url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
-              attribution='Landlord &copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
+              //attribution='Landlord &copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
             />
             <Marker position={position} icon={userIcon} />
             <Circle center={position} radius={10} pathOptions={{ color: 'blue', fillColor: 'blue', fillOpacity: 0.3 }} />
