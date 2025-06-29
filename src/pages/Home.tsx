@@ -13,108 +13,46 @@ import { menu as menuIcon, business as castleIcon } from 'ionicons/icons';
 const PIN_IMAGE = '/pin.png';
 const DEFAULT_AVATAR = '/default-avatar.png';
 
-// Helper to generate a marker icon with avatar overlayed on pin
-async function generateMarkerIcon(avatarUrl: string | null, size = 64): Promise<string> {
+// Helper to generate a marker icon with only the avatar (no pin)
+async function generateMarkerIcon(avatarUrl: string | null, size = 48): Promise<string> {
   return new Promise((resolve) => {
     const canvas = document.createElement('canvas');
     canvas.width = size;
-    canvas.height = size * 1.33; // pin is taller than wide
+    canvas.height = size;
     const ctx = canvas.getContext('2d');
     if (!ctx) return resolve(DEFAULT_AVATAR);
 
-    // Draw pin
-    const pinImg = new window.Image();
-    pinImg.crossOrigin = 'anonymous';
-    pinImg.src = PIN_IMAGE;
-    pinImg.onload = () => {
-      ctx.drawImage(pinImg, 0, 0, size, size * 1.33);
-      // Draw avatar circle
-      const avatarImg = new window.Image();
-      avatarImg.crossOrigin = 'anonymous';
-      avatarImg.src = avatarUrl || DEFAULT_AVATAR;
-      avatarImg.onload = () => {
-        // Center avatar in the pin's circle
-        const avatarSize = size * 0.6;
-        const avatarX = (size - avatarSize) / 2;
-        const avatarY = size * 0.23;
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(size / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, 2 * Math.PI);
-        ctx.closePath();
-        ctx.clip();
-        ctx.drawImage(avatarImg, avatarX, avatarY, avatarSize, avatarSize);
-        ctx.restore();
-        resolve(canvas.toDataURL());
-      };
-      avatarImg.onerror = () => {
-        // If avatar fails, use default avatar
-        const fallbackImg = new window.Image();
-        fallbackImg.crossOrigin = 'anonymous';
-        fallbackImg.src = DEFAULT_AVATAR;
-        fallbackImg.onload = () => {
-          const avatarSize = size * 0.6;
-          const avatarX = (size - avatarSize) / 2;
-          const avatarY = size * 0.23;
-          ctx.save();
-          ctx.beginPath();
-          ctx.arc(size / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, 2 * Math.PI);
-          ctx.closePath();
-          ctx.clip();
-          ctx.drawImage(fallbackImg, avatarX, avatarY, avatarSize, avatarSize);
-          ctx.restore();
-          resolve(canvas.toDataURL());
-        };
-        fallbackImg.onerror = () => {
-          // If even the default avatar fails, just resolve with a blank
-          resolve(DEFAULT_AVATAR);
-        };
-      };
-    };
-    pinImg.onerror = () => {
-      // If pin image fails, fallback to a solid color background
-      ctx.fillStyle = '#d32f2f';
+    // Draw avatar circle
+    const avatarImg = new window.Image();
+    avatarImg.crossOrigin = 'anonymous';
+    avatarImg.src = avatarUrl || DEFAULT_AVATAR;
+    avatarImg.onload = () => {
+      ctx.save();
       ctx.beginPath();
-      ctx.arc(size / 2, size * 0.7, size / 2, Math.PI, 2 * Math.PI);
+      ctx.arc(size / 2, size / 2, size / 2, 0, 2 * Math.PI);
       ctx.closePath();
-      ctx.fill();
-      // Draw avatar as above
-      const avatarImg = new window.Image();
-      avatarImg.crossOrigin = 'anonymous';
-      avatarImg.src = avatarUrl || DEFAULT_AVATAR;
-      avatarImg.onload = () => {
-        const avatarSize = size * 0.6;
-        const avatarX = (size - avatarSize) / 2;
-        const avatarY = size * 0.23;
+      ctx.clip();
+      ctx.drawImage(avatarImg, 0, 0, size, size);
+      ctx.restore();
+      resolve(canvas.toDataURL());
+    };
+    avatarImg.onerror = () => {
+      // If avatar fails, use default avatar
+      const fallbackImg = new window.Image();
+      fallbackImg.crossOrigin = 'anonymous';
+      fallbackImg.src = DEFAULT_AVATAR;
+      fallbackImg.onload = () => {
         ctx.save();
         ctx.beginPath();
-        ctx.arc(size / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, 2 * Math.PI);
+        ctx.arc(size / 2, size / 2, size / 2, 0, 2 * Math.PI);
         ctx.closePath();
         ctx.clip();
-        ctx.drawImage(avatarImg, avatarX, avatarY, avatarSize, avatarSize);
+        ctx.drawImage(fallbackImg, 0, 0, size, size);
         ctx.restore();
         resolve(canvas.toDataURL());
       };
-      avatarImg.onerror = () => {
-        // If avatar fails, use default avatar
-        const fallbackImg = new window.Image();
-        fallbackImg.crossOrigin = 'anonymous';
-        fallbackImg.src = DEFAULT_AVATAR;
-        fallbackImg.onload = () => {
-          const avatarSize = size * 0.6;
-          const avatarX = (size - avatarSize) / 2;
-          const avatarY = size * 0.23;
-          ctx.save();
-          ctx.beginPath();
-          ctx.arc(size / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, 2 * Math.PI);
-          ctx.closePath();
-          ctx.clip();
-          ctx.drawImage(fallbackImg, avatarX, avatarY, avatarSize, avatarSize);
-          ctx.restore();
-          resolve(canvas.toDataURL());
-        };
-        fallbackImg.onerror = () => {
-          resolve(DEFAULT_AVATAR);
-        };
+      fallbackImg.onerror = () => {
+        resolve(DEFAULT_AVATAR);
       };
     };
   });
@@ -163,9 +101,9 @@ const Home: React.FC = () => {
         setMarkerIcon(
           L.icon({
             iconUrl: dataUrl,
-            iconSize: [48, 64],
-            iconAnchor: [24, 64],
-            popupAnchor: [0, -64],
+            iconSize: [48, 48],
+            iconAnchor: [24, 24],
+            popupAnchor: [0, -24],
             className: 'user-avatar-marker',
           })
         );
