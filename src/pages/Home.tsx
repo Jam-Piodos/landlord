@@ -1,5 +1,5 @@
 import { IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonFab, IonFabButton, IonIcon, IonPopover, IonList, IonItem, IonSearchbar, IonModal, IonInput, IonButton, IonLabel, IonText } from '@ionic/react';
-import { MapContainer, TileLayer, Marker, Circle, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Circle, Polyline, Polygon } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/leaflet.markercluster.js';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
@@ -77,6 +77,17 @@ async function generateMarkerIcon(avatarUrl: string | null, size = 48): Promise<
       };
     };
   });
+}
+
+// Helper: check if two line segments (p1-p2 and p3-p4) intersect
+function segmentsIntersect(p1: [number, number], p2: [number, number], p3: [number, number], p4: [number, number]): boolean {
+  function ccw(a: [number, number], b: [number, number], c: [number, number]) {
+    return (c[1] - a[1]) * (b[0] - a[0]) > (b[1] - a[1]) * (c[0] - a[0]);
+  }
+  return (
+    ccw(p1, p3, p4) !== ccw(p2, p3, p4) &&
+    ccw(p1, p2, p3) !== ccw(p1, p2, p4)
+  );
 }
 
 const Home: React.FC = () => {
@@ -165,12 +176,18 @@ const Home: React.FC = () => {
         const newLoc: [number, number] = [pos.coords.latitude, pos.coords.longitude];
         setPath((prev) => {
           const updated = [...prev, newLoc];
-          // Check if returned to start
-          if (
-            updated.length > 10 &&
-            getDistanceMeters(newLoc, updated[0]) < DISTANCE_THRESHOLD
-          ) {
-            stopMapping();
+          // Check for self-intersection
+          if (updated.length > 3) {
+            const lastIdx = updated.length - 1;
+            for (let i = 0; i < lastIdx - 2; i++) {
+              if (segmentsIntersect(updated[i], updated[i + 1], updated[lastIdx - 1], updated[lastIdx])) {
+                // Close the polygon at the intersection
+                const closedPath = updated.slice(i + 1, lastIdx + 1);
+                setPath(closedPath);
+                stopMapping();
+                return closedPath;
+              }
+            }
           }
           return updated;
         });
@@ -262,40 +279,22 @@ const Home: React.FC = () => {
               {mapping && path.length > 1 && <Polyline positions={path} pathOptions={{ color: 'red', weight: 4 }} />}
               {/* Draw all saved land areas */}
               {landAreas.map((area, idx) => (
-                <Polyline key={idx} positions={area.path} pathOptions={{ color: 'green', weight: 3 }} />
+                <>
+                  <Polygon
+                    key={`poly-${idx}`}
+                    positions={area.path}
+                    pathOptions={{ color: 'green', fillColor: 'green', fillOpacity: 0.3, weight: 2 }}
+                  />
+                  <Polyline
+                    key={`line-${idx}`}
+                    positions={area.path}
+                    pathOptions={{ color: 'green', weight: 3 }}
+                  />
+                </>
               ))}
-              <MarkerClusterGroup>
-                {position && <Marker position={position} icon={markerIcon} eventHandlers={{ click: handleMarkerClick }} />}
-              </MarkerClusterGroup>
             </MapContainer>
           </div>
         )}
-        {!position && <div>Loading map...</div>}
-        {/* Popover for marker actions */}
-        <IonPopover
-          isOpen={popoverOpen}
-          onDidDismiss={() => setPopoverOpen(false)}
-          event={popoverAnchor}
-        >
-          <IonList>
-            <IonItem button onClick={() => handleAction('mapland')}>Map Land</IonItem>
-            <IonItem button onClick={() => setPopoverOpen(false)}>Cancel</IonItem>
-          </IonList>
-        </IonPopover>
-        {/* Modal for owner name input */}
-        <IonModal isOpen={showOwnerModal} onDidDismiss={() => setShowOwnerModal(false)}>
-          <div style={{ padding: 24, textAlign: 'center' }}>
-            <IonText><h2>Enter Land Owner's Name</h2></IonText>
-            <IonInput
-              value={ownerName}
-              onIonChange={e => setOwnerName(e.detail.value!)}
-              placeholder="Owner's Name"
-              style={{ margin: '16px 0' }}
-            />
-            <IonButton expand="block" onClick={saveLandArea} disabled={!ownerName}>Save</IonButton>
-            <IonButton expand="block" color="medium" onClick={() => setShowOwnerModal(false)}>Cancel</IonButton>
-          </div>
-        </IonModal>
       </IonContent>
     </IonPage>
   );
