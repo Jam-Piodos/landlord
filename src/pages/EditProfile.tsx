@@ -6,6 +6,7 @@ import {
 } from '@ionic/react';
 import { supabase } from '../utils/supabaseClient';
 import { useHistory } from 'react-router-dom';
+import L from 'leaflet';
 
 const EditAccount: React.FC = () => {
     const [email, setEmail] = useState('');
