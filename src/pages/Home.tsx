@@ -1,5 +1,5 @@
-import { IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonFab, IonFabButton, IonIcon, IonPopover, IonList, IonItem, IonSearchbar } from '@ionic/react';
-import { MapContainer, TileLayer, Marker, Circle } from 'react-leaflet';
+import { IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonFab, IonFabButton, IonIcon, IonPopover, IonList, IonItem, IonSearchbar, IonModal, IonInput, IonButton, IonLabel, IonText } from '@ionic/react';
+import { MapContainer, TileLayer, Marker, Circle, Polyline } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/leaflet.markercluster.js';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
@@ -12,6 +12,27 @@ import { menu as menuIcon, business as castleIcon } from 'ionicons/icons';
 
 const PIN_IMAGE = '/pin.png';
 const DEFAULT_AVATAR = '/default-avatar.png';
+
+const DISTANCE_THRESHOLD = 10; // meters to consider 'return to start'
+
+function getDistanceMeters(
+  loc1: [number, number],
+  loc2: [number, number]
+): number {
+  const [lat1, lng1] = loc1;
+  const [lat2, lng2] = loc2;
+  // Haversine formula
+  const R = 6371000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
 
 // Helper to generate a marker icon with only the avatar (no pin)
 async function generateMarkerIcon(avatarUrl: string | null, size = 48): Promise<string> {
@@ -65,6 +86,13 @@ const Home: React.FC = () => {
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [popoverAnchor, setPopoverAnchor] = useState<any>(null);
   const [searchText, setSearchText] = useState('');
+  const [mapping, setMapping] = useState(false);
+  const [path, setPath] = useState<[number, number][]>([]);
+  const [initialLoc, setInitialLoc] = useState<[number, number] | null>(null);
+  const [showOwnerModal, setShowOwnerModal] = useState(false);
+  const [ownerName, setOwnerName] = useState('');
+  const [landAreas, setLandAreas] = useState<any[]>([]);
+  const watchId = useRef<number | null>(null);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -91,6 +119,7 @@ const Home: React.FC = () => {
       }
     };
     fetchAvatar();
+    return () => {};
   }, []);
 
   // Generate marker icon when avatarUrl changes
@@ -114,6 +143,69 @@ const Home: React.FC = () => {
     };
   }, [avatarUrl]);
 
+  // Load all land areas from DB on mount
+  useEffect(() => {
+    const fetchLandAreas = async () => {
+      const { data } = await supabase.from('land_areas').select('*');
+      setLandAreas(data || []);
+    };
+    fetchLandAreas();
+    return () => {};
+  }, []);
+
+  // Start/stop mapping logic
+  const startMapping = () => {
+    if (!position) return;
+    setMapping(true);
+    setPath([position]);
+    setInitialLoc(position);
+    // Start geolocation tracking
+    watchId.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const newLoc: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+        setPath((prev) => {
+          const updated = [...prev, newLoc];
+          // Check if returned to start
+          if (
+            updated.length > 10 &&
+            getDistanceMeters(newLoc, updated[0]) < DISTANCE_THRESHOLD
+          ) {
+            stopMapping();
+          }
+          return updated;
+        });
+      },
+      (err) => {},
+      { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
+    );
+  };
+
+  const stopMapping = () => {
+    setMapping(false);
+    if (watchId.current !== null) {
+      navigator.geolocation.clearWatch(watchId.current);
+      watchId.current = null;
+    }
+    setShowOwnerModal(true);
+  };
+
+  // Save land area to DB
+  const saveLandArea = async () => {
+    const { data: authData } = await supabase.auth.getUser();
+    const userId = authData?.user?.id;
+    if (!userId || !ownerName || path.length < 3) return;
+    await supabase.from('land_areas').insert({
+      user_id: userId,
+      owner_name: ownerName,
+      path: path,
+    });
+    setLandAreas((prev) => [...prev, { user_id: userId, owner_name: ownerName, path }]);
+    setShowOwnerModal(false);
+    setOwnerName('');
+    setPath([]);
+    setInitialLoc(null);
+  };
+
   // Handler for marker click
   const handleMarkerClick = (e: any) => {
     setPopoverAnchor({
@@ -127,8 +219,7 @@ const Home: React.FC = () => {
   const handleAction = (action: string) => {
     setPopoverOpen(false);
     if (action === 'mapland') {
-      // TODO: Implement map land functionality
-      alert('Map Land action triggered!');
+      startMapping();
     }
   };
 
@@ -167,6 +258,12 @@ const Home: React.FC = () => {
               />
               <Marker position={position} icon={markerIcon} eventHandlers={{ click: handleMarkerClick }} />
               <Circle center={position} radius={10} pathOptions={{ color: 'red', fillColor: 'red', fillOpacity: 0.3 }} />
+              {/* Draw current mapping path */}
+              {mapping && path.length > 1 && <Polyline positions={path} pathOptions={{ color: 'red', weight: 4 }} />}
+              {/* Draw all saved land areas */}
+              {landAreas.map((area, idx) => (
+                <Polyline key={idx} positions={area.path} pathOptions={{ color: 'green', weight: 3 }} />
+              ))}
               <MarkerClusterGroup>
                 {position && <Marker position={position} icon={markerIcon} eventHandlers={{ click: handleMarkerClick }} />}
               </MarkerClusterGroup>
@@ -185,6 +282,20 @@ const Home: React.FC = () => {
             <IonItem button onClick={() => setPopoverOpen(false)}>Cancel</IonItem>
           </IonList>
         </IonPopover>
+        {/* Modal for owner name input */}
+        <IonModal isOpen={showOwnerModal} onDidDismiss={() => setShowOwnerModal(false)}>
+          <div style={{ padding: 24, textAlign: 'center' }}>
+            <IonText><h2>Enter Land Owner's Name</h2></IonText>
+            <IonInput
+              value={ownerName}
+              onIonChange={e => setOwnerName(e.detail.value!)}
+              placeholder="Owner's Name"
+              style={{ margin: '16px 0' }}
+            />
+            <IonButton expand="block" onClick={saveLandArea} disabled={!ownerName}>Save</IonButton>
+            <IonButton expand="block" color="medium" onClick={() => setShowOwnerModal(false)}>Cancel</IonButton>
+          </div>
+        </IonModal>
       </IonContent>
     </IonPage>
   );
