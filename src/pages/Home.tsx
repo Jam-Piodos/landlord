@@ -1,4 +1,4 @@
-import { IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonFab, IonFabButton, IonIcon, IonPopover, IonList, IonItem, IonSearchbar, IonModal, IonInput, IonButton, IonLabel, IonText, IonToast, IonMenu } from '@ionic/react';
+import { IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonFab, IonFabButton, IonIcon, IonPopover, IonList, IonItem, IonSearchbar, IonModal, IonInput, IonButton, IonLabel, IonText, IonToast } from '@ionic/react';
 import { MapContainer, TileLayer, Marker, Circle, Polyline, Polygon, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/leaflet.markercluster.js';
@@ -9,7 +9,6 @@ import MarkerClusterGroup from 'react-leaflet-markercluster';
 import L from 'leaflet';
 import { supabase } from '../utils/supabaseClient';
 import { menu as menuIcon, business as castleIcon, add as addIcon, close as closeIcon, checkmark as checkIcon, refresh as refreshIcon, locate as locateIcon } from 'ionicons/icons';
-import { menuController } from '@ionic/core';
 
 const PIN_IMAGE = '/pin.png';
 const DEFAULT_AVATAR = '/default-avatar.png';
@@ -159,10 +158,10 @@ const Home: React.FC = () => {
         setMarkerIcon(
           L.icon({
             iconUrl: dataUrl,
-            iconSize: [48, 48],
+    iconSize: [48, 48],
             iconAnchor: [24, 24],
             popupAnchor: [0, -24],
-            className: 'user-avatar-marker',
+    className: 'user-avatar-marker',
           })
         );
       }
@@ -240,16 +239,7 @@ const Home: React.FC = () => {
       navigator.geolocation.clearWatch(watchId.current);
       watchId.current = null;
     }
-  };
-
-  // Stop mapping and cancel (no prompt)
-  const cancelMapping = () => {
-    setMapping(false);
-    setPath([]);
-    if (watchId.current !== null) {
-      navigator.geolocation.clearWatch(watchId.current);
-      watchId.current = null;
-    }
+    setShowOwnerModal(false);
   };
 
   // Save land area to DB
@@ -311,7 +301,7 @@ const Home: React.FC = () => {
   const mappingFABs = mapping ? (
     <IonFab vertical="bottom" horizontal="end" slot="fixed" style={{ zIndex: 1001, marginBottom: '2.5rem', marginRight: '1rem' }}>
       <IonFabButton color="danger" onClick={resetMapping} title="Reset"><IonIcon icon={refreshIcon} /></IonFabButton>
-      <IonFabButton color="medium" onClick={cancelMapping} title="Stop"><IonIcon icon={closeIcon} /></IonFabButton>
+      <IonFabButton color="medium" onClick={resetMapping} title="Stop"><IonIcon icon={closeIcon} /></IonFabButton>
       <IonFabButton color="success" onClick={finishMapping} title="Finish Area" disabled={path.length < MIN_AREA_POINTS}><IonIcon icon={checkIcon} /></IonFabButton>
     </IonFab>
   ) : (
@@ -340,10 +330,10 @@ const Home: React.FC = () => {
           </div>
         </IonToolbar>
       </IonHeader>
-      <IonContent id="main-content" fullscreen style={{ padding: 0 }}>
+      <IonContent fullscreen style={{ padding: 0 }}>
         {/* Floating Burger Menu */}
         <IonFab vertical="top" horizontal="end" slot="fixed" style={{ zIndex: 1000, marginTop: '1rem', marginRight: '1rem' }}>
-          <IonFabButton color="primary" onClick={() => menuController.open('main-menu')}>
+          <IonFabButton color="primary" onClick={() => document.querySelector('ion-menu')?.open()}> 
             <IonIcon icon={menuIcon} />
           </IonFabButton>
         </IonFab>
@@ -373,10 +363,10 @@ const Home: React.FC = () => {
               ))}
               {/* Show label for selected area */}
               {selectedArea && <ZoomToArea area={selectedArea} />}
-              <MarkerClusterGroup>
+            <MarkerClusterGroup>
                 {position && <Marker position={position} icon={markerIcon} eventHandlers={{ click: handleMarkerClick }} />}
-              </MarkerClusterGroup>
-            </MapContainer>
+            </MarkerClusterGroup>
+          </MapContainer>
           </div>
         )}
         {!position && <div>Loading map...</div>}
@@ -423,9 +413,6 @@ const Home: React.FC = () => {
             <IonButton expand="block" onClick={() => setSelectedArea(null)}>Close</IonButton>
           </div>
         </IonModal>
-        <IonMenu menuId="main-menu" contentId="main-content" swipeGesture={false}>
-          {/* ...menu content... */}
-        </IonMenu>
       </IonContent>
     </IonPage>
   );
