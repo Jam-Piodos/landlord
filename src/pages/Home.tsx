@@ -1,4 +1,4 @@
-import { IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonFab, IonFabButton, IonIcon, IonPopover, IonList, IonItem, IonSearchbar, IonModal, IonInput, IonButton, IonLabel, IonText, IonToast } from '@ionic/react';
+import { IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonFab, IonFabButton, IonIcon, IonPopover, IonList, IonItem, IonSearchbar, IonModal, IonInput, IonButton, IonLabel, IonText, IonToast, IonMenu } from '@ionic/react';
 import { MapContainer, TileLayer, Marker, Circle, Polyline, Polygon, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/leaflet.markercluster.js';
@@ -9,6 +9,7 @@ import MarkerClusterGroup from 'react-leaflet-markercluster';
 import L from 'leaflet';
 import { supabase } from '../utils/supabaseClient';
 import { menu as menuIcon, business as castleIcon, add as addIcon, close as closeIcon, checkmark as checkIcon, refresh as refreshIcon, locate as locateIcon } from 'ionicons/icons';
+import { menuController } from '@ionic/core';
 
 const PIN_IMAGE = '/pin.png';
 const DEFAULT_AVATAR = '/default-avatar.png';
@@ -241,6 +242,16 @@ const Home: React.FC = () => {
     }
   };
 
+  // Stop mapping and cancel (no prompt)
+  const cancelMapping = () => {
+    setMapping(false);
+    setPath([]);
+    if (watchId.current !== null) {
+      navigator.geolocation.clearWatch(watchId.current);
+      watchId.current = null;
+    }
+  };
+
   // Save land area to DB
   const saveLandArea = async () => {
     const { data: authData } = await supabase.auth.getUser();
@@ -300,7 +311,7 @@ const Home: React.FC = () => {
   const mappingFABs = mapping ? (
     <IonFab vertical="bottom" horizontal="end" slot="fixed" style={{ zIndex: 1001, marginBottom: '2.5rem', marginRight: '1rem' }}>
       <IonFabButton color="danger" onClick={resetMapping} title="Reset"><IonIcon icon={refreshIcon} /></IonFabButton>
-      <IonFabButton color="medium" onClick={stopMapping} title="Stop"><IonIcon icon={closeIcon} /></IonFabButton>
+      <IonFabButton color="medium" onClick={cancelMapping} title="Stop"><IonIcon icon={closeIcon} /></IonFabButton>
       <IonFabButton color="success" onClick={finishMapping} title="Finish Area" disabled={path.length < MIN_AREA_POINTS}><IonIcon icon={checkIcon} /></IonFabButton>
     </IonFab>
   ) : (
@@ -329,10 +340,10 @@ const Home: React.FC = () => {
           </div>
         </IonToolbar>
       </IonHeader>
-      <IonContent fullscreen style={{ padding: 0 }}>
+      <IonContent id="main-content" fullscreen style={{ padding: 0 }}>
         {/* Floating Burger Menu */}
         <IonFab vertical="top" horizontal="end" slot="fixed" style={{ zIndex: 1000, marginTop: '1rem', marginRight: '1rem' }}>
-          <IonFabButton color="primary" onClick={() => document.querySelector('ion-menu')?.open()}> 
+          <IonFabButton color="primary" onClick={() => menuController.open('main-menu')}>
             <IonIcon icon={menuIcon} />
           </IonFabButton>
         </IonFab>
@@ -412,6 +423,9 @@ const Home: React.FC = () => {
             <IonButton expand="block" onClick={() => setSelectedArea(null)}>Close</IonButton>
           </div>
         </IonModal>
+        <IonMenu menuId="main-menu" contentId="main-content" swipeGesture={false}>
+          {/* ...menu content... */}
+        </IonMenu>
       </IonContent>
     </IonPage>
   );
