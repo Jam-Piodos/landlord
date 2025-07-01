@@ -190,6 +190,7 @@ const Home: React.FC = () => {
     watchId.current = navigator.geolocation.watchPosition(
       (pos) => {
         const newLoc: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+        setPosition(newLoc);
         setPath((prev) => {
           const updated = [...prev, newLoc];
           // Check for self-intersection
@@ -245,13 +246,26 @@ const Home: React.FC = () => {
   // Save land area to DB
   const saveLandArea = async () => {
     const { data: authData } = await supabase.auth.getUser();
-    const userId = authData?.user?.id;
-    if (!userId || !ownerName || path.length < MIN_AREA_POINTS) return;
-    await supabase.from('land_areas').insert({
+    const userEmail = authData?.user?.email;
+    if (!userEmail || !ownerName || path.length < MIN_AREA_POINTS) return;
+    // Fetch the integer user_id from users table
+    const { data: userRow, error: userError } = await supabase
+      .from('users')
+      .select('user_id')
+      .eq('user_email', userEmail)
+      .single();
+    if (userError || !userRow?.user_id) return;
+    const userId = userRow.user_id;
+    const { data: insertData, error: insertError } = await supabase.from('land_areas').insert({
       user_id: userId,
       owner_name: ownerName,
       path: path,
     });
+    if (insertError) {
+      console.error('Insert error:', insertError);
+      // Optionally show a toast or alert
+      return;
+    }
     setLandAreas((prev) => [...prev, { user_id: userId, owner_name: ownerName, path }]);
     setShowOwnerModal(false);
     setOwnerName('');
