@@ -171,10 +171,29 @@ const Home: React.FC = () => {
     };
   }, [avatarUrl]);
 
-  // Load all land areas from DB on mount
+  // Load all land areas from DB on mount (only for current user)
   useEffect(() => {
     const fetchLandAreas = async () => {
-      const { data } = await supabase.from('land_areas').select('*');
+      const { data: authData } = await supabase.auth.getUser();
+      const userEmail = authData?.user?.email;
+      if (!userEmail) return;
+      const { data: userRow, error: userError } = await supabase
+        .from('users')
+        .select('user_id')
+        .eq('user_email', userEmail)
+        .single();
+      if (userError || !userRow?.user_id) {
+        console.error('User fetch error:', userError);
+        return;
+      }
+      const userId = userRow.user_id;
+      const { data, error } = await supabase
+        .from('land_areas')
+        .select('*')
+        .eq('user_id', userId);
+      if (error) {
+        console.error('Land areas fetch error:', error);
+      }
       setLandAreas(data || []);
     };
     fetchLandAreas();
@@ -254,8 +273,12 @@ const Home: React.FC = () => {
       .select('user_id')
       .eq('user_email', userEmail)
       .single();
-    if (userError || !userRow?.user_id) return;
+    if (userError || !userRow?.user_id) {
+      console.error('User fetch error:', userError);
+      return;
+    }
     const userId = userRow.user_id;
+    console.log('Inserting land area:', { user_id: userId, owner_name: ownerName, path });
     const { data: insertData, error: insertError } = await supabase.from('land_areas').insert({
       user_id: userId,
       owner_name: ownerName,
@@ -357,6 +380,7 @@ const Home: React.FC = () => {
           <div style={{ width: '100vw', height: 'calc(100vh - 56px)', position: 'relative' }}>
             <MapContainer center={position} zoom={18} style={{ width: '100%', height: '100%' }} ref={mapRef}>
               <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" />
+              {/* Only one marker for the user's current position */}
               <Marker position={position} icon={markerIcon} eventHandlers={{ click: handleMarkerClick }} />
               <Circle center={position} radius={10} pathOptions={{ color: 'red', fillColor: 'red', fillOpacity: 0.3 }} />
               {/* Draw current mapping path and preview area */}
@@ -377,10 +401,7 @@ const Home: React.FC = () => {
               ))}
               {/* Show label for selected area */}
               {selectedArea && <ZoomToArea area={selectedArea} />}
-            <MarkerClusterGroup>
-                {position && <Marker position={position} icon={markerIcon} eventHandlers={{ click: handleMarkerClick }} />}
-            </MarkerClusterGroup>
-          </MapContainer>
+            </MapContainer>
           </div>
         )}
         {!position && <div>Loading map...</div>}
