@@ -13,8 +13,8 @@ import { menu as menuIcon, business as castleIcon, add as addIcon, close as clos
 const PIN_IMAGE = '/pin.png';
 const DEFAULT_AVATAR = '/default-avatar.png';
 
-const DISTANCE_THRESHOLD = 3; // meters
-const MIN_AREA_POINTS = 4;
+const DISTANCE_THRESHOLD = 1.5; // meters (less sensitive for small areas)
+const MIN_AREA_POINTS = 10; // Minimum for agrarian area (1,000 sqm)
 
 function getDistanceMeters(
   loc1: [number, number],
@@ -240,7 +240,8 @@ const Home: React.FC = () => {
         setPosition(newLoc);
         setPath((prev) => {
           const updated = [...prev, newLoc];
-          if (updated.length > 3) {
+          // Only check for closure if there are at least 6 points
+          if (updated.length > 6) {
             const lastIdx = updated.length - 1;
             for (let i = 0; i < lastIdx - 2; i++) {
               const dist = pointToSegmentDistance(updated[lastIdx], updated[i], updated[i + 1]);
