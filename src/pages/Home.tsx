@@ -255,24 +255,7 @@ const Home: React.FC = () => {
       (pos) => {
         const newLoc: [number, number] = [pos.coords.latitude, pos.coords.longitude];
         setPosition(newLoc);
-        setPath((prev) => {
-          const updated = [...prev, newLoc];
-          // Only check for closure if there are at least 6 points
-          if (updated.length > 6) {
-            const lastIdx = updated.length - 1;
-            for (let i = 0; i < lastIdx - 2; i++) {
-              const dist = pointToSegmentDistance(updated[lastIdx], updated[i], updated[i + 1]);
-              if (dist < DISTANCE_THRESHOLD) {
-                // Close the polygon at the near-intersection
-                const closedPath = snapToStart(updated.slice(i + 1, lastIdx + 1));
-                setPath(closedPath);
-                stopMapping();
-                return closedPath;
-              }
-            }
-          }
-          return updated;
-        });
+        setPath((prev) => [...prev, newLoc]);
       },
       (err) => {},
       { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
@@ -291,18 +274,9 @@ const Home: React.FC = () => {
 
   // Manual finish
   const finishMapping = () => {
-    if (path.length >= MIN_AREA_POINTS) {
-      const areaSqm = getPolygonArea(snapToStart(path));
-      if (areaSqm < 1000) {
-        setShowToast(false); // Hide any previous toast
-        setTimeout(() => {
-          setShowToast(true);
-        }, 100); // Show warning toast
-        return;
-      }
-      setPath(snapToStart(path));
-      stopMapping();
-    }
+    const closedPath = snapToStart(path);
+    setPath(closedPath);
+    stopMapping();
   };
 
   // Reset mapping
@@ -489,18 +463,10 @@ const Home: React.FC = () => {
         <IonToast
           isOpen={showToast}
           onDidDismiss={() => setShowToast(false)}
-          message={
-            path.length >= MIN_AREA_POINTS && getPolygonArea(snapToStart(path)) < 1000
-              ? 'Area too small! Minimum is 1,000 sqm.'
-              : 'Land area saved!'
-          }
+          message={'Land area saved!'}
           duration={1500}
           position="top"
-          color={
-            path.length >= MIN_AREA_POINTS && getPolygonArea(snapToStart(path)) < 1000
-              ? 'danger'
-              : 'success'
-          }
+          color={'success'}
         />
         {/* Modal for area details */}
         <IonModal isOpen={!!selectedArea} onDidDismiss={() => setSelectedArea(null)}>
