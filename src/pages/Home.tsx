@@ -267,6 +267,7 @@ const Home: React.FC = () => {
     const { data: authData } = await supabase.auth.getUser();
     const userEmail = authData?.user?.email;
     if (!userEmail || !ownerName || path.length < MIN_AREA_POINTS) return;
+
     // Fetch the integer user_id from users table
     const { data: userRow, error: userError } = await supabase
       .from('users')
@@ -278,7 +279,8 @@ const Home: React.FC = () => {
       return;
     }
     const userId = userRow.user_id;
-    console.log('Inserting land area:', { user_id: userId, owner_name: ownerName, path });
+
+    // Insert the mapped area
     const { data: insertData, error: insertError } = await supabase.from('land_areas').insert({
       user_id: userId,
       owner_name: ownerName,
@@ -286,7 +288,6 @@ const Home: React.FC = () => {
     });
     if (insertError) {
       console.error('Insert error:', insertError);
-      // Optionally show a toast or alert
       return;
     }
     setLandAreas((prev) => [...prev, { user_id: userId, owner_name: ownerName, path }]);
