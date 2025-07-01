@@ -13,7 +13,7 @@ import { menu as menuIcon, business as castleIcon, add as addIcon, close as clos
 const PIN_IMAGE = '/pin.png';
 const DEFAULT_AVATAR = '/default-avatar.png';
 
-const DISTANCE_THRESHOLD = 10; // meters for self-intersection
+const DISTANCE_THRESHOLD = 3; // meters
 const MIN_AREA_POINTS = 4;
 
 function getDistanceMeters(
@@ -102,6 +102,34 @@ function segmentsIntersect(p1: [number, number], p2: [number, number], p3: [numb
 function snapToStart(path: [number, number][]): [number, number][] {
   if (path.length < 3) return path;
   return [...path.slice(0, -1), path[0]];
+}
+
+// Returns the minimum distance (in meters) from point p to segment [a, b]
+function pointToSegmentDistance(
+  p: [number, number],
+  a: [number, number],
+  b: [number, number]
+): number {
+  const toRad = (deg: number) => deg * Math.PI / 180;
+  const [lat, lng] = p;
+  const [lat1, lng1] = a;
+  const [lat2, lng2] = b;
+
+  // Convert to Cartesian coordinates for small distances
+  const R = 6371000;
+  const x = R * toRad(lng - lng1) * Math.cos(toRad((lat + lat1) / 2));
+  const y = R * toRad(lat - lat1);
+
+  const x2 = R * toRad(lng2 - lng1) * Math.cos(toRad((lat2 + lat1) / 2));
+  const y2 = R * toRad(lat2 - lat1);
+
+  const dx = x2;
+  const dy = y2;
+  const t = Math.max(0, Math.min(1, (x * dx + y * dy) / (dx * dx + dy * dy)));
+  const projX = t * dx;
+  const projY = t * dy;
+  const dist = Math.sqrt((x - projX) ** 2 + (y - projY) ** 2);
+  return dist;
 }
 
 const Home: React.FC = () => {
@@ -212,12 +240,12 @@ const Home: React.FC = () => {
         setPosition(newLoc);
         setPath((prev) => {
           const updated = [...prev, newLoc];
-          // Check for self-intersection
           if (updated.length > 3) {
             const lastIdx = updated.length - 1;
             for (let i = 0; i < lastIdx - 2; i++) {
-              if (segmentsIntersect(updated[i], updated[i + 1], updated[lastIdx - 1], updated[lastIdx])) {
-                // Close the polygon at the intersection
+              const dist = pointToSegmentDistance(updated[lastIdx], updated[i], updated[i + 1]);
+              if (dist < DISTANCE_THRESHOLD) {
+                // Close the polygon at the near-intersection
                 const closedPath = snapToStart(updated.slice(i + 1, lastIdx + 1));
                 setPath(closedPath);
                 stopMapping();
