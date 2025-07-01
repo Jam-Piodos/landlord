@@ -449,8 +449,8 @@ const Home: React.FC = () => {
                   pathOptions={{
                     color: area.user_id === currentUserId ? 'blue' : 'green',
                     fillColor: area.user_id === currentUserId ? 'blue' : 'green',
-                    fillOpacity: 0.3,
-                    weight: 2
+                    fillOpacity: 0.5,
+                    weight: 4
                   }}
                   eventHandlers={{ click: () => setSelectedArea(area) }}
                 />
