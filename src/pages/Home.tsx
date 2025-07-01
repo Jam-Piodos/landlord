@@ -132,6 +132,23 @@ function pointToSegmentDistance(
   return dist;
 }
 
+// Calculate the area of a polygon (in square meters) using the Shoelace formula on the sphere
+function getPolygonArea(coords: [number, number][]): number {
+  if (coords.length < 3) return 0;
+  // Use the spherical excess formula for more accuracy on Earth
+  // For small areas, planar Shoelace is a good approximation
+  const R = 6371000; // Earth radius in meters
+  let area = 0;
+  for (let i = 0, l = coords.length; i < l; i++) {
+    const [lat1, lon1] = coords[i];
+    const [lat2, lon2] = coords[(i + 1) % l];
+    area += toRad(lon2 - lon1) * (2 + Math.sin(toRad(lat1)) + Math.sin(toRad(lat2)));
+  }
+  area = area * R * R / 2;
+  return Math.abs(area); // Always positive
+  function toRad(deg: number) { return deg * Math.PI / 180; }
+}
+
 const Home: React.FC = () => {
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -275,6 +292,14 @@ const Home: React.FC = () => {
   // Manual finish
   const finishMapping = () => {
     if (path.length >= MIN_AREA_POINTS) {
+      const areaSqm = getPolygonArea(snapToStart(path));
+      if (areaSqm < 1000) {
+        setShowToast(false); // Hide any previous toast
+        setTimeout(() => {
+          setShowToast(true);
+        }, 100); // Show warning toast
+        return;
+      }
       setPath(snapToStart(path));
       stopMapping();
     }
@@ -460,14 +485,22 @@ const Home: React.FC = () => {
             <IonButton expand="block" color="medium" onClick={() => setShowOwnerModal(false)}>Cancel</IonButton>
           </div>
         </IonModal>
-        {/* Toast for success */}
+        {/* Toast for success and area warning */}
         <IonToast
           isOpen={showToast}
           onDidDismiss={() => setShowToast(false)}
-          message="Land area saved!"
+          message={
+            path.length >= MIN_AREA_POINTS && getPolygonArea(snapToStart(path)) < 1000
+              ? 'Area too small! Minimum is 1,000 sqm.'
+              : 'Land area saved!'
+          }
           duration={1500}
           position="top"
-          color="success"
+          color={
+            path.length >= MIN_AREA_POINTS && getPolygonArea(snapToStart(path)) < 1000
+              ? 'danger'
+              : 'success'
+          }
         />
         {/* Modal for area details */}
         <IonModal isOpen={!!selectedArea} onDidDismiss={() => setSelectedArea(null)}>
