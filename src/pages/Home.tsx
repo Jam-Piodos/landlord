@@ -149,6 +149,16 @@ function getPolygonArea(coords: [number, number][]): number {
   function toRad(deg: number) { return deg * Math.PI / 180; }
 }
 
+// Helper: compute centroid of a polygon
+function getPolygonCentroid(coords: [number, number][]): [number, number] {
+  let x = 0, y = 0, n = coords.length;
+  for (let i = 0; i < n; i++) {
+    x += coords[i][0];
+    y += coords[i][1];
+  }
+  return [x / n, y / n];
+}
+
 const Home: React.FC = () => {
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -166,6 +176,7 @@ const Home: React.FC = () => {
   const [showToast, setShowToast] = useState(false);
   const watchId = useRef<number | null>(null);
   const mapRef = useRef<any>(null);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -216,30 +227,31 @@ const Home: React.FC = () => {
     };
   }, [avatarUrl]);
 
-  // Load all land areas from DB on mount (only for current user)
+  // Load all land areas from DB on mount (all users)
   useEffect(() => {
     const fetchLandAreas = async () => {
       const { data: authData } = await supabase.auth.getUser();
       const userEmail = authData?.user?.email;
-      if (!userEmail) return;
-      const { data: userRow, error: userError } = await supabase
-        .from('users')
-        .select('user_id')
-        .eq('user_email', userEmail)
-        .single();
-      if (userError || !userRow?.user_id) {
-        console.error('User fetch error:', userError);
-        return;
+      let currentUserId: number | null = null;
+      if (userEmail) {
+        const { data: userRow, error: userError } = await supabase
+          .from('users')
+          .select('user_id')
+          .eq('user_email', userEmail)
+          .single();
+        if (!userError && userRow?.user_id) {
+          currentUserId = userRow.user_id;
+        }
       }
-      const userId = userRow.user_id;
+      // Fetch all land areas
       const { data, error } = await supabase
         .from('land_areas')
-        .select('*')
-        .eq('user_id', userId);
+        .select('*');
       if (error) {
         console.error('Land areas fetch error:', error);
       }
       setLandAreas(data || []);
+      setCurrentUserId(currentUserId); // Save for highlighting
     };
     fetchLandAreas();
     return () => {};
@@ -376,6 +388,16 @@ const Home: React.FC = () => {
     </IonFab>
   );
 
+  // Handler to open Google Maps directions to the centroid of the selected area
+  const handleGetDirections = () => {
+    if (!selectedArea || !position) return;
+    const centroid = getPolygonCentroid(selectedArea.path);
+    const [destLat, destLng] = centroid;
+    const [startLat, startLng] = position;
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${startLat},${startLng}&destination=${destLat},${destLng}&travelmode=driving`;
+    window.open(url, '_blank');
+  };
+
   return (
     <IonPage>
       <IonHeader>
@@ -424,7 +446,12 @@ const Home: React.FC = () => {
                 <Polygon
                   key={`poly-${idx}`}
                   positions={area.path}
-                  pathOptions={{ color: 'green', fillColor: 'green', fillOpacity: 0.3, weight: 2 }}
+                  pathOptions={{
+                    color: area.user_id === currentUserId ? 'blue' : 'green',
+                    fillColor: area.user_id === currentUserId ? 'blue' : 'green',
+                    fillOpacity: 0.3,
+                    weight: 2
+                  }}
                   eventHandlers={{ click: () => setSelectedArea(area) }}
                 />
               ))}
@@ -475,6 +502,11 @@ const Home: React.FC = () => {
             <IonLabel><b>Owner:</b> {selectedArea?.owner_name}</IonLabel><br />
             <IonLabel><b>Points:</b> {selectedArea?.path.length}</IonLabel><br />
             <IonButton expand="block" onClick={() => setSelectedArea(null)}>Close</IonButton>
+            {selectedArea && position && (
+              <IonButton expand="block" color="primary" onClick={handleGetDirections} style={{ marginTop: 12 }}>
+                Get Directions
+              </IonButton>
+            )}
           </div>
         </IonModal>
       </IonContent>
