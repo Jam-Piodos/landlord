@@ -35,27 +35,41 @@ import {
     const [showAlert, setShowAlert] = useState(false);
     const [showToast, setShowToast] = useState(false);
   
-    const doLogin = async () => {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-  
-      if (error) {
-        setAlertMessage(error.message);
-        setShowAlert(true);
-        return;
-      }
-  
-      // Fetch user avatar after successful login (if needed elsewhere)
-      // const { data: userData } = await supabase
-      //   .from('users')
-      //   .select('user_avatar_url')
-      //   .eq('user_email', email)
-      //   .single();
-  
-      setShowToast(true); 
-      setTimeout(() => {
-        navigation.push('/landlord/app', 'forward', 'replace');
-      }, 300);
-    };
+      const doLogin = async () => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      setAlertMessage(error.message);
+      setShowAlert(true);
+      return;
+    }
+
+    // Check if user account is active
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('active')
+      .eq('user_email', email)
+      .single();
+
+    if (userError) {
+      setAlertMessage('Error checking user status. Please try again.');
+      setShowAlert(true);
+      return;
+    }
+
+    if (!userData?.active) {
+      setAlertMessage('Your account has been deactivated. Please contact the administrator.');
+      setShowAlert(true);
+      // Sign out the user since they shouldn't be logged in
+      await supabase.auth.signOut();
+      return;
+    }
+
+    setShowToast(true); 
+    setTimeout(() => {
+      navigation.push('/landlord/app', 'forward', 'replace');
+    }, 300);
+  };
   
     return (
       <IonPage>
