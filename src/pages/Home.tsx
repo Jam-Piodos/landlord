@@ -11,7 +11,7 @@ const PIN_IMAGE = '/pin.png';
 const DEFAULT_AVATAR = '/default-avatar.png';
 
 const DISTANCE_THRESHOLD = 1.5; // meters (less sensitive for small areas)
-const MIN_AREA_POINTS = 10; // Minimum for agrarian area (1,000 sqm)
+const MIN_AREA_POINTS = 4; // Minimum for a valid polygon (quadrilateral)
 
 function getDistanceMeters(
   loc1: [number, number],
