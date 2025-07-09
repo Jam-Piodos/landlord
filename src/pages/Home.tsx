@@ -280,7 +280,7 @@ const Home: React.FC = () => {
   // Finish mapping: close polygon
   const finishMapping = () => {
     if (path.length < MIN_AREA_POINTS) return;
-    setPath((prev) => prev.length > 2 ? [...prev, prev[0]] : prev);
+    setPath((prev) => (prev.length > 2 && (prev[0][0] !== prev[prev.length-1][0] || prev[0][1] !== prev[prev.length-1][1])) ? [...prev, prev[0]] : prev);
     setMapping(false);
     if (watchId.current !== null) {
       navigator.geolocation.clearWatch(watchId.current);
@@ -466,7 +466,7 @@ const Home: React.FC = () => {
                   )}
                   {/* Draw polygon preview if closed */}
                   {path.length > 2 && path[0] && path[path.length-1] && path[0][0] === path[path.length-1][0] && path[0][1] === path[path.length-1][1] && (
-                    <Polygon positions={path} pathOptions={{ color: 'blue', fillColor: 'blue', fillOpacity: 0.2, weight: 2 }} />
+                    <Polygon positions={path} pathOptions={{ color: 'green', fillColor: 'green', fillOpacity: 0.2, weight: 2 }} />
                   )}
                 </>
               )}
