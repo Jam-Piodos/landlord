@@ -6,6 +6,7 @@ import L from 'leaflet';
 import { supabase } from '../utils/supabaseClient';
 import { menu as menuIcon, business as castleIcon, add as addIcon, close as closeIcon, checkmark as checkIcon, refresh as refreshIcon } from 'ionicons/icons';
 import { locationOutline } from 'ionicons/icons';
+import React from 'react'; // Added for React.Fragment
 
 const PIN_IMAGE = '/pin.png';
 const DEFAULT_AVATAR = '/default-avatar.png';
@@ -413,6 +414,12 @@ const Home: React.FC = () => {
     </IonFab>
   );
 
+  // Use an inline SVG for the location-outline icon in white
+  const locationOutlineSVG = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' width='28' height='28' style='display:block'><path fill='none' stroke='white' stroke-width='32' stroke-linecap='round' stroke-linejoin='round' d='M256 48v416M400 256H112'/></svg>`;
+
+  // Use a simple white circle for saved area vertices
+  const whiteCircleHTML = `<div style='width:18px;height:18px;border-radius:50%;background:white;border:2px solid #333;box-shadow:0 0 4px #0003;'></div>`;
+
   return (
     <IonPage>
       <IonHeader>
@@ -472,17 +479,32 @@ const Home: React.FC = () => {
               )}
               {/* Draw all saved land areas */}
               {landAreas.map((area, idx) => (
-                <Polygon
-                  key={`poly-${idx}`}
-                  positions={area.path}
-                  pathOptions={{
-                    color: area.user_id === currentUserId ? 'blue' : 'green',
-                    fillColor: area.user_id === currentUserId ? 'blue' : 'green',
-                    fillOpacity: 0.5,
-                    weight: 4
-                  }}
-                  eventHandlers={{ click: () => setSelectedArea(area) }}
-                />
+                <React.Fragment key={`poly-${idx}`}>
+                  <Polygon
+                    positions={area.path}
+                    pathOptions={{
+                      color: area.user_id === currentUserId ? 'blue' : 'green',
+                      fillColor: area.user_id === currentUserId ? 'blue' : 'green',
+                      fillOpacity: 0.5,
+                      weight: 4
+                    }}
+                    eventHandlers={{ click: () => setSelectedArea(area) }}
+                  />
+                  {/* Show white circle at each vertex */}
+                  {area.path.map((pt: [number, number], i: number) => (
+                    <Marker
+                      key={`area-marker-${idx}-${i}`}
+                      position={pt}
+                      icon={L.divIcon({
+                        className: '',
+                        html: whiteCircleHTML,
+                        iconSize: [18, 18],
+                        iconAnchor: [9, 9],
+                      })}
+                      interactive={false}
+                    />
+                  ))}
+                </React.Fragment>
               ))}
               {/* Show label for selected area */}
               {selectedArea && <ZoomToArea area={selectedArea} />}
