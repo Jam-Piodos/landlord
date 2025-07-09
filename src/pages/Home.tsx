@@ -1,14 +1,11 @@
 import { IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonFab, IonFabButton, IonIcon, IonPopover, IonList, IonItem, IonSearchbar, IonModal, IonInput, IonButton, IonLabel, IonText, IonToast } from '@ionic/react';
 import { MapContainer, TileLayer, Marker, Circle, Polyline, Polygon, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import 'leaflet.markercluster/dist/leaflet.markercluster.js';
-import 'leaflet.markercluster/dist/MarkerCluster.css';
-import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import { useEffect, useState, useRef } from 'react';
-import MarkerClusterGroup from 'react-leaflet-markercluster';
 import L from 'leaflet';
 import { supabase } from '../utils/supabaseClient';
-import { menu as menuIcon, business as castleIcon, add as addIcon, close as closeIcon, checkmark as checkIcon, refresh as refreshIcon, locate as locateIcon } from 'ionicons/icons';
+import { menu as menuIcon, business as castleIcon, add as addIcon, close as closeIcon, checkmark as checkIcon, refresh as refreshIcon } from 'ionicons/icons';
+import { locationOutline } from 'ionicons/icons';
 
 const PIN_IMAGE = '/pin.png';
 const DEFAULT_AVATAR = '/default-avatar.png';
@@ -163,18 +160,16 @@ const Home: React.FC = () => {
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [markerIcon, setMarkerIcon] = useState<L.Icon | null>(null);
-  const [popoverOpen, setPopoverOpen] = useState(false);
-  const [popoverAnchor, setPopoverAnchor] = useState<any>(null);
   const [searchText, setSearchText] = useState('');
   const [mapping, setMapping] = useState(false);
-  const [path, setPath] = useState<[number, number][]>([]);
-  const [initialLoc, setInitialLoc] = useState<[number, number] | null>(null);
+  const [path, setPath] = useState<[number, number][]>([]); // Marked points
+  const [walkedPath, setWalkedPath] = useState<[number, number][]>([]); // Breadcrumb trail
+  const watchId = useRef<number | null>(null);
   const [showOwnerModal, setShowOwnerModal] = useState(false);
   const [ownerName, setOwnerName] = useState('');
   const [landAreas, setLandAreas] = useState<any[]>([]);
   const [selectedArea, setSelectedArea] = useState<any | null>(null);
   const [showToast, setShowToast] = useState(false);
-  const watchId = useRef<number | null>(null);
   const mapRef = useRef<any>(null);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
 
@@ -257,44 +252,61 @@ const Home: React.FC = () => {
     return () => {};
   }, []);
 
-  // Start mapping
+  // Start mapping (begin geolocation tracking)
   const startMapping = () => {
-    if (!position) return;
     setMapping(true);
-    setPath([position]);
-    // Start geolocation tracking
-    watchId.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const newLoc: [number, number] = [pos.coords.latitude, pos.coords.longitude];
-        setPosition(newLoc);
-        setPath((prev) => [...prev, newLoc]);
-      },
-      (err) => {},
-      { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
-    );
+    setPath([]);
+    setWalkedPath([]);
+    if (navigator.geolocation) {
+      watchId.current = navigator.geolocation.watchPosition(
+        (pos) => {
+          const newLoc: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+          setPosition(newLoc);
+          setWalkedPath((prev) => [...prev, newLoc]);
+        },
+        (err) => {},
+        { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
+      );
+    }
   };
 
-  // Stop mapping
-  const stopMapping = () => {
+  // Mark current position as a land marker
+  const markHere = () => {
+    if (!position) return;
+    setPath((prev) => [...prev, position]);
+    setWalkedPath([position]); // Start new walked segment from here
+  };
+
+  // Finish mapping: close polygon
+  const finishMapping = () => {
+    if (path.length < MIN_AREA_POINTS) return;
+    setPath((prev) => prev.length > 2 ? [...prev, prev[0]] : prev);
     setMapping(false);
     if (watchId.current !== null) {
       navigator.geolocation.clearWatch(watchId.current);
       watchId.current = null;
     }
+    setWalkedPath([]);
     setShowOwnerModal(true);
-  };
-
-  // Manual finish
-  const finishMapping = () => {
-    const closedPath = snapToStart(path);
-    setPath(closedPath);
-    stopMapping();
   };
 
   // Reset mapping
   const resetMapping = () => {
     setMapping(false);
     setPath([]);
+    setWalkedPath([]);
+    if (watchId.current !== null) {
+      navigator.geolocation.clearWatch(watchId.current);
+      watchId.current = null;
+    }
+    setShowOwnerModal(false);
+  };
+
+  // Cancel mapping
+  const cancelMapping = () => {
+    setMapping(false);
+    setPath([]);
+    setWalkedPath([]);
     if (watchId.current !== null) {
       navigator.geolocation.clearWatch(watchId.current);
       watchId.current = null;
@@ -350,42 +362,19 @@ const Home: React.FC = () => {
   }
 
   // Handler for marker click
-  const handleMarkerClick = (e: any) => {
-    setPopoverAnchor({
-      x: e.originalEvent.clientX,
-      y: e.originalEvent.clientY,
-    });
-    setPopoverOpen(true);
-  };
-
-  // Handler for popover actions
-  const handleAction = (action: string) => {
-    setPopoverOpen(false);
-    if (action === 'mapland') {
-      startMapping();
-    }
-  };
+  // Remove popover state and handler
+  // Remove IonPopover component from the render
+  // Remove handleMarkerClick and handleAction functions
+  // Remove popoverOpen, popoverAnchor from state
+  // Remove eventHandlers={{ click: handleMarkerClick }} from the profile marker
 
   // Status overlay
   const mappingStatus = mapping && (
     <div style={{ position: 'absolute', top: 70, left: 10, zIndex: 1001, background: 'rgba(255,255,255,0.95)', borderRadius: 8, padding: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
       <IonText color="primary"><b>Mapping in progress...</b></IonText><br />
-      <IonLabel>Points: {path.length}</IonLabel><br />
+      <IonLabel>Markers: {path.length}</IonLabel><br />
       <IonLabel>Distance: {getPathLength(path).toFixed(1)} m</IonLabel>
     </div>
-  );
-
-  // FABs for mapping controls
-  const mappingFABs = mapping ? (
-    <IonFab vertical="bottom" horizontal="end" slot="fixed" style={{ zIndex: 1001, marginBottom: '2.5rem', marginRight: '1rem' }}>
-      <IonFabButton color="danger" onClick={resetMapping} title="Reset"><IonIcon icon={refreshIcon} /></IonFabButton>
-      <IonFabButton color="medium" onClick={resetMapping} title="Stop"><IonIcon icon={closeIcon} /></IonFabButton>
-      <IonFabButton color="success" onClick={finishMapping} title="Finish Area" disabled={path.length < MIN_AREA_POINTS}><IonIcon icon={checkIcon} /></IonFabButton>
-    </IonFab>
-  ) : (
-    <IonFab vertical="bottom" horizontal="end" slot="fixed" style={{ zIndex: 1001, marginBottom: '2.5rem', marginRight: '1rem' }}>
-      <IonFabButton color="primary" onClick={startMapping} title="Start Mapping"><IonIcon icon={addIcon} /></IonFabButton>
-    </IonFab>
   );
 
   // Handler to open Google Maps directions to the centroid of the selected area
@@ -397,6 +386,32 @@ const Home: React.FC = () => {
     const url = `https://www.google.com/maps/dir/?api=1&origin=${startLat},${startLng}&destination=${destLat},${destLng}&travelmode=driving`;
     window.open(url, '_blank');
   };
+
+  // Mapping controls (FAB group)
+  const mappingFABs = mapping ? (
+    <div style={{ position: 'fixed', bottom: '2.5rem', right: '1rem', zIndex: 1001, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <IonButton color="primary" onClick={markHere} style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+        <IonIcon icon={locationOutline} slot="start" />
+        Mark Here
+      </IonButton>
+      <IonButton color="success" onClick={finishMapping} disabled={path.length < MIN_AREA_POINTS} style={{ marginBottom: 8 }}>
+        <IonIcon icon={checkIcon} slot="start" />
+        Done
+      </IonButton>
+      <IonButton color="medium" onClick={cancelMapping} style={{ marginBottom: 8 }}>
+        <IonIcon icon={closeIcon} slot="start" />
+        Cancel
+      </IonButton>
+      <IonButton color="danger" onClick={resetMapping} >
+        <IonIcon icon={refreshIcon} slot="start" />
+        Reset
+      </IonButton>
+    </div>
+  ) : (
+    <IonFab vertical="bottom" horizontal="end" slot="fixed" style={{ zIndex: 1001, marginBottom: '2.5rem', marginRight: '1rem' }}>
+      <IonFabButton color="primary" onClick={startMapping} title="Start Mapping"><IonIcon icon={addIcon} /></IonFabButton>
+    </IonFab>
+  );
 
   return (
     <IonPage>
@@ -432,13 +447,27 @@ const Home: React.FC = () => {
             <MapContainer center={position} zoom={18} style={{ width: '100%', height: '100%' }} ref={mapRef}>
               <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" />
               {/* Only one marker for the user's current position */}
-              <Marker position={position} icon={markerIcon} eventHandlers={{ click: handleMarkerClick }} />
+              <Marker position={position} icon={markerIcon} />
               <Circle center={position} radius={10} pathOptions={{ color: 'red', fillColor: 'red', fillOpacity: 0.3 }} />
               {/* Draw current mapping path and preview area */}
-              {mapping && path.length > 1 && (
+              {mapping && (
                 <>
-                  <Polyline positions={path} pathOptions={{ color: 'red', weight: 4 }} />
-                  {path.length >= MIN_AREA_POINTS && <Polygon positions={snapToStart(path)} pathOptions={{ color: 'red', fillColor: 'red', fillOpacity: 0.2, weight: 2 }} />}
+                  {/* Draw walked path as gray polyline */}
+                  {walkedPath.length > 1 && (
+                    <Polyline positions={walkedPath} pathOptions={{ color: 'gray', weight: 2, dashArray: '6 6' }} />
+                  )}
+                  {/* Draw circles at each marker */}
+                  {path.map((pt, idx) => (
+                    <Circle key={`marker-${idx}`} center={pt} radius={2.5} pathOptions={{ color: 'blue', fillColor: 'blue', fillOpacity: 1 }} />
+                  ))}
+                  {/* Draw lines between markers (polygon) */}
+                  {path.length > 1 && (
+                    <Polyline positions={path} pathOptions={{ color: 'blue', weight: 3 }} />
+                  )}
+                  {/* Draw polygon preview if closed */}
+                  {path.length > 2 && path[0] && path[path.length-1] && path[0][0] === path[path.length-1][0] && path[0][1] === path[path.length-1][1] && (
+                    <Polygon positions={path} pathOptions={{ color: 'blue', fillColor: 'blue', fillOpacity: 0.2, weight: 2 }} />
+                  )}
                 </>
               )}
               {/* Draw all saved land areas */}
@@ -461,17 +490,6 @@ const Home: React.FC = () => {
           </div>
         )}
         {!position && <div>Loading map...</div>}
-        {/* Popover for marker actions */}
-        <IonPopover
-          isOpen={popoverOpen}
-          onDidDismiss={() => setPopoverOpen(false)}
-          event={popoverAnchor}
-        >
-          <IonList>
-            <IonItem button onClick={() => handleAction('mapland')}>Map Land</IonItem>
-            <IonItem button onClick={() => setPopoverOpen(false)}>Cancel</IonItem>
-          </IonList>
-        </IonPopover>
         {/* Modal for owner name input */}
         <IonModal isOpen={showOwnerModal} onDidDismiss={() => setShowOwnerModal(false)}>
           <div style={{ padding: 24, textAlign: 'center' }}>
