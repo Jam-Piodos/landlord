@@ -11,7 +11,7 @@ import {
     useIonRouter
   } from '@ionic/react';
   import { logoIonic } from 'ionicons/icons';
-  import { useState } from 'react';
+  import { useState, useEffect, useRef } from 'react';
   import { supabase } from '../utils/supabaseClient';
   import L from 'leaflet';
   
@@ -34,6 +34,28 @@ import {
     const [alertMessage, setAlertMessage] = useState('');
     const [showAlert, setShowAlert] = useState(false);
     const [showToast, setShowToast] = useState(false);
+    const [showInstall, setShowInstall] = useState(false);
+    const deferredPrompt = useRef<any>(null);
+
+    useEffect(() => {
+      const handler = (e: any) => {
+        e.preventDefault();
+        deferredPrompt.current = e;
+        setShowInstall(true);
+      };
+      window.addEventListener('beforeinstallprompt', handler);
+      return () => window.removeEventListener('beforeinstallprompt', handler);
+    }, []);
+
+    const handleInstallClick = async () => {
+      if (!deferredPrompt.current) return;
+      deferredPrompt.current.prompt();
+      const { outcome } = await deferredPrompt.current.userChoice;
+      if (outcome === 'accepted') {
+        setShowInstall(false);
+        deferredPrompt.current = null;
+      }
+    };
   
       const doLogin = async () => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -125,6 +147,11 @@ import {
           <IonButton onClick={doLogin} expand="full" shape='round'>
             Login
           </IonButton>
+          {showInstall && (
+            <IonButton expand="full" color="secondary" shape='round' style={{ marginTop: 12 }} onClick={handleInstallClick}>
+              Install on mobile phone
+            </IonButton>
+          )}
   
           {/* Reusable AlertBox Component */}
           <AlertBox message={alertMessage} isOpen={showAlert} onClose={() => setShowAlert(false)} />
