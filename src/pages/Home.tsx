@@ -363,8 +363,14 @@ const Home: React.FC = () => {
   const saveLandArea = async () => {
     const { data: authData } = await supabase.auth.getUser();
     const userEmail = authData?.user?.email;
-    if (!userEmail || !ownerName || path.length < MIN_AREA_POINTS) return;
-
+    if (!userEmail || path.length < MIN_AREA_POINTS) {
+      setShowToast(true);
+      return;
+    }
+    if (!ownerName || ownerName.trim() === '') {
+      setShowToast(true);
+      return;
+    }
     // Fetch the integer user_id from users table
     const { data: userRow, error: userError } = await supabase
       .from('users')
@@ -372,24 +378,12 @@ const Home: React.FC = () => {
       .eq('user_email', userEmail)
       .single();
     if (userError || !userRow?.user_id) {
-      console.error('User fetch error:', userError);
+      setShowToast(true);
       return;
     }
     const userId = userRow.user_id;
-
-    // Insert the mapped area (land_areas)
-    const { data: insertData, error: insertError } = await supabase.from('land_areas').insert({
-      user_id: userId,
-      path: path,
-    });
-    if (insertError || !insertData || !insertData[0]) {
-      console.error('Insert error:', insertError);
-      return;
-    }
-    const newLandAreaId = (insertData[0] as any).id;
-
-    // Insert or upsert owner details (owners table)
-    const { error: ownerError } = await supabase.from('owners').upsert({
+    const landAreaData = { user_id: userId, path: path };
+    const ownerData = {
       name: ownerName,
       land_reference: landReference,
       land_size: landSize ? Number(landSize) : null,
@@ -400,14 +394,43 @@ const Home: React.FC = () => {
       num_owned_lots: numOwnedLots ? Number(numOwnedLots) : null,
       tax_status: taxStatus,
       development_status: developmentStatus,
-      land_area_id: newLandAreaId,
-    }, { onConflict: 'name' });
-    if (ownerError) {
-      console.error('Owner upsert error:', ownerError);
-      // Optionally show a toast or error message
+      user_id: userId,
+    };
+    if (!navigator.onLine) {
+      savePendingLandArea(landAreaData, ownerData);
+      setShowToast(true);
+      setShowOwnerModal(false);
+      setOwnerName('');
+      setLandReference('');
+      setLandSize('');
+      setLandSizeUnit('');
+      setLandType('');
+      setPropertyElevation('');
+      setBarangay('');
+      setNumOwnedLots('');
+      setTaxStatus('');
+      setDevelopmentStatus('');
+      setPath([]);
+      setMapping(false);
+      return;
     }
-
-    setLandAreas((prev) => [...prev, { user_id: userId, owner_name: ownerName, path, id: newLandAreaId }]);
+    // Insert the mapped area (land_areas)
+    const { data: insertData, error: insertError } = await supabase
+      .from('land_areas')
+      .insert(landAreaData)
+      .select();
+    if (insertError || !insertData || !insertData[0]) {
+      setShowToast(true);
+      return;
+    }
+    const newLandAreaId = (insertData[0] as any).id;
+    // Insert owner details (owners table)
+    const { error: ownerError } = await supabase.from('owners').insert({ ...ownerData, land_area_id: newLandAreaId });
+    if (ownerError) {
+      setShowToast(true);
+      return;
+    }
+    setLandAreas((prev) => [...prev, { user_id: userId, path, id: newLandAreaId }]);
     setShowOwnerModal(false);
     setOwnerName('');
     setLandReference('');
@@ -554,6 +577,43 @@ const Home: React.FC = () => {
       setShowEditModal(true);
     }
   };
+
+  // Utility: Save pending land areas to localStorage
+  const savePendingLandArea = (landArea: any, owner: any) => {
+    const pending = JSON.parse(localStorage.getItem('pendingLandAreas') || '[]');
+    pending.push({ landArea, owner });
+    localStorage.setItem('pendingLandAreas', JSON.stringify(pending));
+  };
+
+  // Utility: Sync pending land areas from localStorage
+  const syncPendingLandAreas = async () => {
+    const pending = JSON.parse(localStorage.getItem('pendingLandAreas') || '[]');
+    for (const item of pending) {
+      try {
+        // Insert land area
+        const { data: insertData, error: insertError } = await supabase
+          .from('land_areas')
+          .insert(item.landArea)
+          .select();
+        if (insertError || !insertData || !insertData[0]) continue;
+        const newLandAreaId = (insertData[0] as any).id;
+        // Insert owner
+        await supabase.from('owners').insert({ ...item.owner, land_area_id: newLandAreaId });
+      } catch (e) { /* ignore */ }
+    }
+    if (pending.length > 0) {
+      localStorage.removeItem('pendingLandAreas');
+      setShowToast(true);
+      await refreshLandAreas();
+    }
+  };
+
+  // Effect: Sync on reconnect
+  React.useEffect(() => {
+    const handleOnline = () => { syncPendingLandAreas(); };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, []);
 
   return (
     <IonPage>
