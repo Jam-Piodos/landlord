@@ -1,12 +1,11 @@
-import { IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonFab, IonFabButton, IonIcon, IonPopover, IonList, IonItem, IonSearchbar, IonModal, IonInput, IonButton, IonLabel, IonText, IonToast } from '@ionic/react';
+import { IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonFab, IonFabButton, IonIcon, IonPopover, IonList, IonItem, IonSearchbar, IonModal, IonInput, IonButton, IonLabel, IonText, IonToast, IonSelect, IonSelectOption } from '@ionic/react';
 import { MapContainer, TileLayer, Marker, Circle, Polyline, Polygon, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import L from 'leaflet';
 import { supabase } from '../utils/supabaseClient';
 import { menu as menuIcon, business as castleIcon, add as addIcon, close as closeIcon, checkmark as checkIcon, refresh as refreshIcon } from 'ionicons/icons';
 import { locationOutline } from 'ionicons/icons';
-import React from 'react'; // Added for React.Fragment
 
 const PIN_IMAGE = '/pin.png';
 const DEFAULT_AVATAR = '/default-avatar.png';
@@ -157,6 +156,16 @@ function getPolygonCentroid(coords: [number, number][]): [number, number] {
   return [x / n, y / n];
 }
 
+// Helper to calculate bearing
+function getBearing(from: [number, number], to: [number, number]): number {
+  const [lat1, lon1] = from.map((d) => d * Math.PI / 180);
+  const [lat2, lon2] = to.map((d) => d * Math.PI / 180);
+  const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) -
+    Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
 const Home: React.FC = () => {
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -168,11 +177,46 @@ const Home: React.FC = () => {
   const watchId = useRef<number | null>(null);
   const [showOwnerModal, setShowOwnerModal] = useState(false);
   const [ownerName, setOwnerName] = useState('');
+  const [landReference, setLandReference] = useState('');
+  const [landSize, setLandSize] = useState('');
+  const [landSizeUnit, setLandSizeUnit] = useState('');
+  const [landType, setLandType] = useState('');
+  const [propertyElevation, setPropertyElevation] = useState('');
+  const [barangay, setBarangay] = useState('');
+  const [numOwnedLots, setNumOwnedLots] = useState('');
+  const [taxStatus, setTaxStatus] = useState('');
+  const [developmentStatus, setDevelopmentStatus] = useState('');
   const [landAreas, setLandAreas] = useState<any[]>([]);
   const [selectedArea, setSelectedArea] = useState<any | null>(null);
   const [showToast, setShowToast] = useState(false);
   const mapRef = useRef<any>(null);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  // Add state for in-app directions
+  const [directions, setDirections] = useState<null | {
+    centroid: [number, number],
+    nearest: [number, number],
+    centroidDist: number,
+    centroidBearing: number,
+    nearestDist: number,
+    nearestBearing: number,
+  }>(null);
+  // Add state for directions popover
+  const [directionsPopover, setDirectionsPopover] = useState<{ open: boolean, event: any } | null>(null);
+  const [routeCoords, setRouteCoords] = useState<[number, number][]>([]);
+  const [routeInfo, setRouteInfo] = useState<{ distance: number, duration: number } | null>(null);
+  const [areaPopover, setAreaPopover] = useState<{ open: boolean, event: any, area: any } | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editFields, setEditFields] = useState<any>({});
+  const [editPassword, setEditPassword] = useState('');
+  const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDeletePasswordPrompt, setShowDeletePasswordPrompt] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [viewFields, setViewFields] = useState<any>({});
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -333,7 +377,7 @@ const Home: React.FC = () => {
     }
     const userId = userRow.user_id;
 
-    // Insert the mapped area
+    // Insert the mapped area (land_areas)
     const { data: insertData, error: insertError } = await supabase.from('land_areas').insert({
       user_id: userId,
       owner_name: ownerName,
@@ -343,9 +387,37 @@ const Home: React.FC = () => {
       console.error('Insert error:', insertError);
       return;
     }
+
+    // Insert or upsert owner details (owners table)
+    const { error: ownerError } = await supabase.from('owners').upsert({
+      name: ownerName,
+      land_reference: landReference,
+      land_size: landSize ? Number(landSize) : null,
+      land_size_unit: landSizeUnit,
+      land_type: landType,
+      property_elevation: propertyElevation ? Number(propertyElevation) : null,
+      barangay: barangay,
+      num_owned_lots: numOwnedLots ? Number(numOwnedLots) : null,
+      tax_status: taxStatus,
+      development_status: developmentStatus,
+    }, { onConflict: 'name' });
+    if (ownerError) {
+      console.error('Owner upsert error:', ownerError);
+      // Optionally show a toast or error message
+    }
+
     setLandAreas((prev) => [...prev, { user_id: userId, owner_name: ownerName, path }]);
     setShowOwnerModal(false);
     setOwnerName('');
+    setLandReference('');
+    setLandSize('');
+    setLandSizeUnit('');
+    setLandType('');
+    setPropertyElevation('');
+    setBarangay('');
+    setNumOwnedLots('');
+    setTaxStatus('');
+    setDevelopmentStatus('');
     setPath([]);
     setMapping(false);
     setShowToast(true);
@@ -378,15 +450,28 @@ const Home: React.FC = () => {
     </div>
   );
 
-  // Handler to open Google Maps directions to the centroid of the selected area
-  const handleGetDirections = () => {
+  // In-app directions handler
+  const handleGetDirections = (e: any) => {
     if (!selectedArea || !position) return;
     const centroid = getPolygonCentroid(selectedArea.path);
-    const [destLat, destLng] = centroid;
-    const [startLat, startLng] = position;
-    const url = `https://www.google.com/maps/dir/?api=1&origin=${startLat},${startLng}&destination=${destLat},${destLng}&travelmode=driving`;
-    window.open(url, '_blank');
+    setDirectionsPopover({ open: true, event: e.nativeEvent });
+    fetchRoute(position, centroid);
   };
+
+  // Fetch route from OSRM API
+  async function fetchRoute(from: [number, number], to: [number, number]) {
+    const url = `https://router.project-osrm.org/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}?overview=full&geometries=geojson`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.routes && data.routes[0]) {
+      const coords = data.routes[0].geometry.coordinates.map(([lng, lat]: [number, number]) => [lat, lng]);
+      setRouteCoords(coords);
+      setRouteInfo({ distance: data.routes[0].distance, duration: data.routes[0].duration });
+    } else {
+      setRouteCoords([]);
+      setRouteInfo(null);
+    }
+  }
 
   // Mapping controls (FAB group)
   const mappingFABs = mapping ? (
@@ -419,6 +504,12 @@ const Home: React.FC = () => {
 
   // Use a simple white circle for saved area vertices
   const whiteCircleHTML = `<div style='width:18px;height:18px;border-radius:50%;background:white;border:2px solid #333;box-shadow:0 0 4px #0003;'></div>`;
+
+  // After successful edit or delete, refresh land areas
+  const refreshLandAreas = async () => {
+    const { data, error } = await supabase.from('land_areas').select('*');
+    if (!error) setLandAreas(data || []);
+  };
 
   return (
     <IonPage>
@@ -488,7 +579,9 @@ const Home: React.FC = () => {
                       fillOpacity: 0.5,
                       weight: 4
                     }}
-                    eventHandlers={{ click: () => setSelectedArea(area) }}
+                    eventHandlers={{
+                      click: (e: any) => setAreaPopover({ open: true, event: e.originalEvent, area })
+                    }}
                   />
                   {/* Show white circle at each vertex */}
                   {area.path.map((pt: [number, number], i: number) => (
@@ -508,22 +601,68 @@ const Home: React.FC = () => {
               ))}
               {/* Show label for selected area */}
               {selectedArea && <ZoomToArea area={selectedArea} />}
+              {directions && (
+                <>
+                  {/* Line to centroid (green) */}
+                  <Polyline positions={[position, directions.centroid]} pathOptions={{ color: 'green', weight: 4, dashArray: '8 8' }} />
+                  {/* Line to nearest vertex (blue) */}
+                  <Polyline positions={[position, directions.nearest]} pathOptions={{ color: 'blue', weight: 4, dashArray: '4 8' }} />
+                  {/* Markers for destination points */}
+                  <Marker position={directions.centroid} icon={L.divIcon({ className: '', html: whiteCircleHTML, iconSize: [18, 18], iconAnchor: [9, 9] })} interactive={false} />
+                  <Marker position={directions.nearest} icon={L.divIcon({ className: '', html: whiteCircleHTML, iconSize: [18, 18], iconAnchor: [9, 9] })} interactive={false} />
+                </>
+              )}
+              {/* Draw the route polyline if present */}
+              {routeCoords.length > 1 && (
+                <Polyline positions={routeCoords} pathOptions={{ color: 'orange', weight: 5 }} />
+              )}
             </MapContainer>
           </div>
         )}
         {!position && <div>Loading map...</div>}
         {/* Modal for owner name input */}
-        <IonModal isOpen={showOwnerModal} onDidDismiss={() => setShowOwnerModal(false)}>
+        <IonModal isOpen={showOwnerModal} onDidDismiss={() => {
+  setShowOwnerModal(false);
+  setOwnerName('');
+  setLandReference('');
+  setLandSize('');
+  setLandSizeUnit('');
+  setLandType('');
+  setPropertyElevation('');
+  setBarangay('');
+  setNumOwnedLots('');
+  setTaxStatus('');
+  setDevelopmentStatus('');
+}}>
           <div style={{ padding: 24, textAlign: 'center' }}>
-            <IonText><h2>Enter Land Owner's Name</h2></IonText>
-            <IonInput
-              value={ownerName}
-              onIonChange={e => setOwnerName(e.detail.value!)}
-              placeholder="Owner's Name"
-              style={{ margin: '16px 0' }}
-            />
+            <IonText><h2>Enter Land Owner's Details</h2></IonText>
+            <IonInput value={ownerName} onIonChange={e => setOwnerName(e.detail.value!)} placeholder="Owner's Name" style={{ margin: '8px 0' }} />
+            <IonInput value={landReference} onIonChange={e => setLandReference(e.detail.value!)} placeholder="Land Reference" style={{ margin: '8px 0' }} />
+            <IonInput value={landSize} type="number" onIonChange={e => setLandSize(e.detail.value!)} placeholder="Land Size" style={{ margin: '8px 0' }} />
+            <IonSelect value={landSizeUnit} onIonChange={e => setLandSizeUnit(e.detail.value!)} placeholder="Land Size Unit" style={{ margin: '8px 0' }} >
+              <IonSelectOption value="sqm">sqm</IonSelectOption>
+              <IonSelectOption value="hectares">hectares</IonSelectOption>
+            </IonSelect>
+            <IonInput value={landType} onIonChange={e => setLandType(e.detail.value!)} placeholder="Land Type (e.g. agricultural, residential)" style={{ margin: '8px 0' }} />
+            <IonInput value={propertyElevation} type="number" onIonChange={e => setPropertyElevation(e.detail.value!)} placeholder="Property Elevation (meters)" style={{ margin: '8px 0' }} />
+            <IonInput value={barangay} onIonChange={e => setBarangay(e.detail.value!)} placeholder="Barangay / Location" style={{ margin: '8px 0' }} />
+            <IonInput value={numOwnedLots} type="number" onIonChange={e => setNumOwnedLots(e.detail.value!)} placeholder="Number of Owned Lots" style={{ margin: '8px 0' }} />
+            <IonInput value={taxStatus} onIonChange={e => setTaxStatus(e.detail.value!)} placeholder="Tax Status or Credit Balance" style={{ margin: '8px 0' }} />
+            <IonInput value={developmentStatus} onIonChange={e => setDevelopmentStatus(e.detail.value!)} placeholder="Development Status or Upgrade Option" style={{ margin: '8px 0' }} />
             <IonButton expand="block" onClick={saveLandArea} disabled={!ownerName}>Save</IonButton>
-            <IonButton expand="block" color="medium" onClick={() => setShowOwnerModal(false)}>Cancel</IonButton>
+            <IonButton expand="block" color="medium" onClick={() => {
+              setShowOwnerModal(false);
+              setOwnerName('');
+              setLandReference('');
+              setLandSize('');
+              setLandSizeUnit('');
+              setLandType('');
+              setPropertyElevation('');
+              setBarangay('');
+              setNumOwnedLots('');
+              setTaxStatus('');
+              setDevelopmentStatus('');
+            }}>Cancel</IonButton>
           </div>
         </IonModal>
         {/* Toast for success and area warning */}
@@ -536,17 +675,228 @@ const Home: React.FC = () => {
           color={'success'}
         />
         {/* Modal for area details */}
-        <IonModal isOpen={!!selectedArea} onDidDismiss={() => setSelectedArea(null)}>
+        <IonModal isOpen={!!selectedArea} onDidDismiss={() => { setSelectedArea(null); setDirections(null); setRouteCoords([]); setRouteInfo(null); setDirectionsPopover(null); }}>
           <div style={{ padding: 24, textAlign: 'center' }}>
             <IonText><h2>Land Area Details</h2></IonText>
             <IonLabel><b>Owner:</b> {selectedArea?.owner_name}</IonLabel><br />
             <IonLabel><b>Points:</b> {selectedArea?.path.length}</IonLabel><br />
-            <IonButton expand="block" onClick={() => setSelectedArea(null)}>Close</IonButton>
+            <IonButton expand="block" onClick={() => { setSelectedArea(null); setDirections(null); setRouteCoords([]); setRouteInfo(null); setDirectionsPopover(null); }}>Close</IonButton>
             {selectedArea && position && (
               <IonButton expand="block" color="primary" onClick={handleGetDirections} style={{ marginTop: 12 }}>
                 Get Directions
               </IonButton>
             )}
+          </div>
+        </IonModal>
+        {/* Add IonPopover for directions info */}
+        <IonPopover
+          isOpen={!!directionsPopover?.open}
+          event={directionsPopover?.event}
+          onDidDismiss={() => { setDirectionsPopover(null); setRouteCoords([]); setRouteInfo(null); }}
+        >
+          <div style={{ padding: 16, minWidth: 220 }}>
+            <b>Directions (in-app):</b><br />
+            {routeInfo ? (
+              <>
+                <b>Distance:</b> {(routeInfo.distance/1000).toFixed(2)} km<br />
+                <b>Estimated Time:</b> {Math.round(routeInfo.duration/60)} min<br />
+              </>
+            ) : (
+              <span>Loading route...</span>
+            )}
+            <IonButton expand="block" color="medium" size="small" onClick={() => { setDirectionsPopover(null); setRouteCoords([]); setRouteInfo(null); }} style={{ marginTop: 8 }}>Close</IonButton>
+          </div>
+        </IonPopover>
+        <IonPopover
+          isOpen={!!areaPopover?.open}
+          event={areaPopover?.event}
+          onDidDismiss={() => setAreaPopover(null)}
+        >
+          <IonList style={{ minWidth: 200 }}>
+            <IonItem button onClick={() => {
+              const area = areaPopover?.area;
+              setViewFields({
+                ownerName: area?.owner_name || '',
+                landReference: area?.land_reference || '',
+                landSize: area?.land_size || '',
+                landSizeUnit: area?.land_size_unit || '',
+                landType: area?.land_type || '',
+                propertyElevation: area?.property_elevation || '',
+                barangay: area?.barangay || '',
+                numOwnedLots: area?.num_owned_lots || '',
+                taxStatus: area?.tax_status || '',
+                developmentStatus: area?.development_status || '',
+                areaId: area?.id,
+                path: area?.path,
+              });
+              setShowViewModal(true);
+              setAreaPopover(null);
+            }}>
+              View Land Info
+            </IonItem>
+            <IonItem button onClick={() => {
+              // Prefill fields from areaPopover.area
+              const area = areaPopover?.area;
+              setEditFields({
+                ownerName: area?.owner_name || '',
+                landReference: area?.land_reference || '',
+                landSize: area?.land_size || '',
+                landSizeUnit: area?.land_size_unit || '',
+                landType: area?.land_type || '',
+                propertyElevation: area?.property_elevation || '',
+                barangay: area?.barangay || '',
+                numOwnedLots: area?.num_owned_lots || '',
+                taxStatus: area?.tax_status || '',
+                developmentStatus: area?.development_status || '',
+                areaId: area?.id,
+                path: area?.path,
+              });
+              setShowEditModal(true);
+              setAreaPopover(null);
+            }}>
+              Edit Land Info
+            </IonItem>
+            <IonItem button onClick={() => {
+              setDeleteTarget(areaPopover?.area);
+              setShowDeleteConfirm(true);
+              setAreaPopover(null);
+            }} color="danger">
+              Delete Land
+            </IonItem>
+            <IonItem button onClick={() => {
+              setSelectedArea(areaPopover?.area);
+              setAreaPopover(null);
+              setTimeout(() => handleGetDirections({ nativeEvent: areaPopover?.event }), 0);
+            }}>
+              Get Directions
+            </IonItem>
+            <IonItem button onClick={() => setAreaPopover(null)}>
+              Nevermind
+            </IonItem>
+          </IonList>
+        </IonPopover>
+        <IonModal isOpen={showEditModal} onDidDismiss={() => { setShowEditModal(false); setEditPassword(''); setEditError(''); }}>
+          <div style={{ padding: 24, textAlign: 'center' }}>
+            <IonText><h2>Edit Land Info</h2></IonText>
+            <IonInput value={editFields.ownerName} onIonChange={e => setEditFields((prev: any) => ({ ...prev, ownerName: e.detail.value! }))} placeholder="Owner's Name" style={{ margin: '8px 0' }} />
+            <IonInput value={editFields.landReference} onIonChange={e => setEditFields((prev: any) => ({ ...prev, landReference: e.detail.value! }))} placeholder="Land Reference" style={{ margin: '8px 0' }} />
+            <IonInput value={editFields.landSize} type="number" onIonChange={e => setEditFields((prev: any) => ({ ...prev, landSize: e.detail.value! }))} placeholder="Land Size" style={{ margin: '8px 0' }} />
+            <IonSelect value={editFields.landSizeUnit} onIonChange={e => setEditFields((prev: any) => ({ ...prev, landSizeUnit: e.detail.value! }))} placeholder="Land Size Unit" style={{ margin: '8px 0' }} >
+              <IonSelectOption value="sqm">sqm</IonSelectOption>
+              <IonSelectOption value="hectares">hectares</IonSelectOption>
+            </IonSelect>
+            <IonInput value={editFields.landType} onIonChange={e => setEditFields((prev: any) => ({ ...prev, landType: e.detail.value! }))} placeholder="Land Type (e.g. agricultural, residential)" style={{ margin: '8px 0' }} />
+            <IonInput value={editFields.propertyElevation} type="number" onIonChange={e => setEditFields((prev: any) => ({ ...prev, propertyElevation: e.detail.value! }))} placeholder="Property Elevation (meters)" style={{ margin: '8px 0' }} />
+            <IonInput value={editFields.barangay} onIonChange={e => setEditFields((prev: any) => ({ ...prev, barangay: e.detail.value! }))} placeholder="Barangay / Location" style={{ margin: '8px 0' }} />
+            <IonInput value={editFields.numOwnedLots} type="number" onIonChange={e => setEditFields((prev: any) => ({ ...prev, numOwnedLots: e.detail.value! }))} placeholder="Number of Owned Lots" style={{ margin: '8px 0' }} />
+            <IonInput value={editFields.taxStatus} onIonChange={e => setEditFields((prev: any) => ({ ...prev, taxStatus: e.detail.value! }))} placeholder="Tax Status or Credit Balance" style={{ margin: '8px 0' }} />
+            <IonInput value={editFields.developmentStatus} onIonChange={e => setEditFields((prev: any) => ({ ...prev, developmentStatus: e.detail.value! }))} placeholder="Development Status or Upgrade Option" style={{ margin: '8px 0' }} />
+            {editError && <IonText color="danger"><div style={{ margin: '8px 0' }}>{editError}</div></IonText>}
+            <IonButton expand="block" onClick={() => setShowPasswordPrompt(true)}>Save</IonButton>
+            <IonButton expand="block" color="medium" onClick={() => { setShowEditModal(false); setEditPassword(''); setEditError(''); }}>Cancel</IonButton>
+          </div>
+        </IonModal>
+        <IonModal isOpen={showPasswordPrompt} onDidDismiss={() => { setShowPasswordPrompt(false); setEditPassword(''); setEditError(''); }}>
+          <div style={{ padding: 24, textAlign: 'center' }}>
+            <IonText><h2>Confirm Password</h2></IonText>
+            <IonInput type="password" value={editPassword} onIonChange={e => setEditPassword(e.detail.value!)} placeholder="Enter your password" style={{ margin: '16px 0' }} />
+            {editError && <IonText color="danger"><div style={{ margin: '8px 0' }}>{editError}</div></IonText>}
+            <IonButton expand="block" onClick={async () => {
+              setEditError('');
+              // Get current user email
+              const { data: authData } = await supabase.auth.getUser();
+              const userEmail = authData?.user?.email;
+              if (!userEmail) { setEditError('No user.'); return; }
+              // Try to sign in with password
+              const { error: pwError } = await supabase.auth.signInWithPassword({ email: userEmail, password: editPassword });
+              if (pwError) { setEditError('Incorrect password.'); return; }
+              // Update owner
+              const { error: ownerError } = await supabase.from('owners').update({
+                name: editFields.ownerName,
+                land_reference: editFields.landReference,
+                land_size: editFields.landSize ? Number(editFields.landSize) : null,
+                land_size_unit: editFields.landSizeUnit,
+                land_type: editFields.landType,
+                property_elevation: editFields.propertyElevation ? Number(editFields.propertyElevation) : null,
+                barangay: editFields.barangay,
+                num_owned_lots: editFields.numOwnedLots ? Number(editFields.numOwnedLots) : null,
+                tax_status: editFields.taxStatus,
+                development_status: editFields.developmentStatus,
+              }).eq('name', areaPopover?.area?.owner_name || editFields.ownerName);
+              if (ownerError) { setEditError('Failed to update owner.'); return; }
+              // Update land_areas if needed (e.g. owner_name or path changed)
+              if (editFields.areaId) {
+                const { error: landError } = await supabase.from('land_areas').update({
+                  owner_name: editFields.ownerName,
+                  path: editFields.path,
+                }).eq('id', editFields.areaId);
+                if (landError) { setEditError('Failed to update land area.'); return; }
+              }
+              setShowEditModal(false);
+              setShowPasswordPrompt(false);
+              setEditPassword('');
+              setEditError('');
+              await refreshLandAreas();
+            }}>Confirm</IonButton>
+            <IonButton expand="block" color="medium" onClick={() => { setShowPasswordPrompt(false); setEditPassword(''); setEditError(''); }}>Cancel</IonButton>
+          </div>
+        </IonModal>
+        <IonModal isOpen={showDeleteConfirm} onDidDismiss={() => { setShowDeleteConfirm(false); setDeletePassword(''); setDeleteError(''); }}>
+          <div style={{ padding: 24, textAlign: 'center' }}>
+            <IonText color="danger"><h2>Delete Land Area?</h2></IonText>
+            <div style={{ margin: '16px 0' }}>Are you sure you want to delete this land area? This action cannot be undone.</div>
+            <IonButton expand="block" color="danger" onClick={() => { setShowDeleteConfirm(false); setShowDeletePasswordPrompt(true); }}>Yes, Delete</IonButton>
+            <IonButton expand="block" color="medium" onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); setDeleteError(''); setDeleteTarget(null); }}>No, Cancel</IonButton>
+          </div>
+        </IonModal>
+        <IonModal isOpen={showDeletePasswordPrompt} onDidDismiss={() => { setShowDeletePasswordPrompt(false); setDeletePassword(''); setDeleteError(''); setDeleteTarget(null); }}>
+          <div style={{ padding: 24, textAlign: 'center' }}>
+            <IonText><h2>Confirm Password</h2></IonText>
+            <IonInput type="password" value={deletePassword} onIonChange={e => setDeletePassword(e.detail.value!)} placeholder="Enter your password" style={{ margin: '16px 0' }} />
+            {deleteError && <IonText color="danger"><div style={{ margin: '8px 0' }}>{deleteError}</div></IonText>}
+            <IonButton expand="block" color="danger" onClick={async () => {
+              setDeleteError('');
+              // Get current user email
+              const { data: authData } = await supabase.auth.getUser();
+              const userEmail = authData?.user?.email;
+              if (!userEmail) { setDeleteError('No user.'); return; }
+              // Try to sign in with password
+              const { error: pwError } = await supabase.auth.signInWithPassword({ email: userEmail, password: deletePassword });
+              if (pwError) { setDeleteError('Incorrect password.'); return; }
+              // Delete land area
+              if (deleteTarget?.id) {
+                const { error: landError } = await supabase.from('land_areas').delete().eq('id', deleteTarget.id);
+                if (landError) { setDeleteError('Failed to delete land area.'); return; }
+              }
+              // Optionally delete owner if no other land areas reference them
+              if (deleteTarget?.owner_name) {
+                const { data: otherAreas } = await supabase.from('land_areas').select('id').eq('owner_name', deleteTarget.owner_name);
+                if (!otherAreas || otherAreas.length === 0) {
+                  await supabase.from('owners').delete().eq('name', deleteTarget.owner_name);
+                }
+              }
+              setShowDeletePasswordPrompt(false);
+              setDeletePassword('');
+              setDeleteError('');
+              setDeleteTarget(null);
+              await refreshLandAreas();
+            }}>Confirm Delete</IonButton>
+            <IonButton expand="block" color="medium" onClick={() => { setShowDeletePasswordPrompt(false); setDeletePassword(''); setDeleteError(''); setDeleteTarget(null); }}>Cancel</IonButton>
+          </div>
+        </IonModal>
+        <IonModal isOpen={showViewModal} onDidDismiss={() => setShowViewModal(false)}>
+          <div style={{ padding: 24, textAlign: 'center' }}>
+            <IonText><h2>Land Info</h2></IonText>
+            <IonLabel><b>Owner's Name:</b> {viewFields.ownerName}</IonLabel><br />
+            <IonLabel><b>Land Reference:</b> {viewFields.landReference}</IonLabel><br />
+            <IonLabel><b>Land Size:</b> {viewFields.landSize} {viewFields.landSizeUnit}</IonLabel><br />
+            <IonLabel><b>Land Type:</b> {viewFields.landType}</IonLabel><br />
+            <IonLabel><b>Property Elevation:</b> {viewFields.propertyElevation}</IonLabel><br />
+            <IonLabel><b>Barangay:</b> {viewFields.barangay}</IonLabel><br />
+            <IonLabel><b>Number of Owned Lots:</b> {viewFields.numOwnedLots}</IonLabel><br />
+            <IonLabel><b>Tax Status:</b> {viewFields.taxStatus}</IonLabel><br />
+            <IonLabel><b>Development Status:</b> {viewFields.developmentStatus}</IonLabel><br />
+            <IonButton expand="block" onClick={() => setShowViewModal(false)}>Close</IonButton>
           </div>
         </IonModal>
       </IonContent>
