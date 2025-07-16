@@ -615,6 +615,27 @@ const Home: React.FC = () => {
     return () => window.removeEventListener('online', handleOnline);
   }, []);
 
+  // Polling: refresh land areas every 5 seconds
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      refreshLandAreas();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Supabase Realtime: subscribe to land_areas changes
+  React.useEffect(() => {
+    const channel = supabase
+      .channel('realtime:land_areas')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'land_areas' }, payload => {
+        refreshLandAreas();
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   return (
     <IonPage>
       <IonHeader>
