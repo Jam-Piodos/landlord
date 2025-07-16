@@ -1,102 +1,130 @@
-/* Minimal professional theme for Landlord app (DAR palette) */
+/* DAR Minimalist Professional Theme */
 :root {
-  --dar-green: #00743f;
-  --dar-yellow: #ffd600;
-  --dar-white: #fff;
-  --dar-gray: #f5f5f5;
+  --dar-yellow: #FFD600;
+  --dar-green: #00743F;
+  --dar-dark-green: #004225;
+  --dar-white: #FFFFFF;
+  --dar-gray: #F5F5F5;
+  --dar-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  --dar-radius: 16px;
+  --dar-font: 'Inter', 'Segoe UI', Arial, sans-serif;
 }
 
 body, .ion-content {
-  background: var(--dar-white);
-  color: var(--dar-green);
-}
-
-.ion-modal, .modal-content, .popover-content {
-  background: var(--dar-white);
-  border-radius: 18px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
-  padding: 24px;
-}
-
-.ion-button, .dar-btn {
-  background: var(--dar-green);
-  color: var(--dar-white);
-  border-radius: 8px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  transition: background 0.2s;
-}
-.ion-button:hover, .dar-btn:hover {
-  background: var(--dar-yellow);
-  color: var(--dar-green);
-}
-
-.ion-item, .dar-list-item {
-  border-radius: 8px;
-  margin: 4px 0;
   background: var(--dar-gray);
-  color: var(--dar-green);
-  transition: background 0.2s;
-}
-.ion-item:hover, .dar-list-item:hover {
-  background: var(--dar-yellow);
-  color: var(--dar-green);
+  color: var(--dar-dark-green);
+  font-family: var(--dar-font);
 }
 
-.ion-label, .dar-label {
-  color: var(--dar-green);
-  font-weight: 500;
-}
-
-.ion-input, .dar-input {
-  border-radius: 6px;
-  border: 1px solid var(--dar-green);
+.dar-modal, .dar-card, .dar-popover {
   background: var(--dar-white);
+  border-radius: var(--dar-radius);
+  box-shadow: var(--dar-shadow);
+  padding: 32px;
+  max-width: 340px;
+  margin: 0 auto;
+}
+
+.dar-title {
   color: var(--dar-green);
-  padding: 8px 12px;
-  margin-bottom: 8px;
-}
-
-.ion-select, .dar-select {
-  border-radius: 6px;
-  border: 1px solid var(--dar-green);
-  background: var(--dar-white);
-  color: var(--dar-green);
-  padding: 8px 12px;
-  margin-bottom: 8px;
-}
-
-.ion-text, .dar-title {
-  color: var(--dar-green);
-  font-weight: 700;
-}
-
-.ion-toast {
-  --background: var(--dar-green);
-  --color: var(--dar-white);
-  border-radius: 8px;
-}
-
-.dar-modal-header {
-  color: var(--dar-yellow);
-  font-size: 1.3rem;
+  font-size: 1.4rem;
   font-weight: 700;
   margin-bottom: 12px;
-}
-
-.dar-modal-close {
-  background: none;
-  color: var(--dar-green);
-  border: none;
-  font-size: 1.2rem;
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  cursor: pointer;
+  letter-spacing: 0.01em;
 }
 
 .dar-divider {
   border-bottom: 1px solid var(--dar-green);
   margin: 16px 0;
+}
+
+.dar-btn, .ion-button {
+  background: var(--dar-green);
+  color: var(--dar-white);
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 1.05rem;
+  letter-spacing: 0.01em;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  transition: background 0.2s, color 0.2s;
+  margin-top: 8px;
+}
+.dar-btn:hover, .ion-button:hover {
+  background: var(--dar-yellow);
+  color: var(--dar-green);
+}
+
+.dar-input, .ion-input, .dar-select, .ion-select {
+  border-radius: 8px;
+  border: 1.5px solid var(--dar-green);
+  background: var(--dar-white);
+  color: var(--dar-dark-green);
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  font-size: 1.08rem;
+  font-family: var(--dar-font);
+  transition: border 0.2s;
+}
+.dar-input:focus, .ion-input:focus, .dar-select:focus, .ion-select:focus {
+  border: 1.5px solid var(--dar-yellow);
+  outline: none;
+}
+
+.dar-label, .ion-label {
+  color: var(--dar-dark-green);
+  font-weight: 500;
+  font-size: 1.08rem;
+  margin-bottom: 4px;
+}
+
+.dar-list, .ion-list {
+  background: var(--dar-white);
+  border-radius: var(--dar-radius);
+  box-shadow: var(--dar-shadow);
+  padding: 0;
+}
+.dar-list-item, .ion-item {
+  border-radius: 8px;
+  margin: 4px 0;
+  background: var(--dar-white);
+  color: var(--dar-dark-green);
+  transition: background 0.2s, color 0.2s;
+  font-size: 1.08rem;
+}
+.dar-list-item:hover, .ion-item:hover {
+  background: var(--dar-yellow);
+  color: var(--dar-green);
+}
+
+.dar-toast, .ion-toast {
+  --background: var(--dar-green);
+  --color: var(--dar-white);
+  border-radius: 8px;
+  font-size: 1.08rem;
+}
+
+.dar-avatar {
+  width: 110px;
+  height: 110px;
+  background: var(--dar-yellow);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 12px auto;
+}
+
+.dar-menu {
+  background: var(--dar-white);
+  border-radius: var(--dar-radius);
+  box-shadow: var(--dar-shadow);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  background: var(--dar-gray);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--dar-green);
+  border-radius: 8px;
 }

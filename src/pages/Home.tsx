@@ -177,15 +177,6 @@ const Home: React.FC = () => {
   const watchId = useRef<number | null>(null);
   const [showOwnerModal, setShowOwnerModal] = useState(false);
   const [ownerName, setOwnerName] = useState('');
-  const [landReference, setLandReference] = useState('');
-  const [landSize, setLandSize] = useState('');
-  const [landSizeUnit, setLandSizeUnit] = useState('');
-  const [landType, setLandType] = useState('');
-  const [propertyElevation, setPropertyElevation] = useState('');
-  const [barangay, setBarangay] = useState('');
-  const [numOwnedLots, setNumOwnedLots] = useState('');
-  const [taxStatus, setTaxStatus] = useState('');
-  const [developmentStatus, setDevelopmentStatus] = useState('');
   const [landAreas, setLandAreas] = useState<any[]>([]);
   const [selectedArea, setSelectedArea] = useState<any | null>(null);
   const [showToast, setShowToast] = useState(false);
@@ -385,15 +376,6 @@ const Home: React.FC = () => {
     const landAreaData = { user_id: userId, path: path };
     const ownerData = {
       name: ownerName,
-      land_reference: landReference,
-      land_size: landSize ? Number(landSize) : null,
-      land_size_unit: landSizeUnit,
-      land_type: landType,
-      property_elevation: propertyElevation ? Number(propertyElevation) : null,
-      barangay: barangay,
-      num_owned_lots: numOwnedLots ? Number(numOwnedLots) : null,
-      tax_status: taxStatus,
-      development_status: developmentStatus,
       user_id: userId,
     };
     if (!navigator.onLine) {
@@ -401,17 +383,9 @@ const Home: React.FC = () => {
       setShowToast(true);
       setShowOwnerModal(false);
       setOwnerName('');
-      setLandReference('');
-      setLandSize('');
-      setLandSizeUnit('');
-      setLandType('');
-      setPropertyElevation('');
-      setBarangay('');
-      setNumOwnedLots('');
-      setTaxStatus('');
-      setDevelopmentStatus('');
       setPath([]);
       setMapping(false);
+      // Optionally scroll or focus map here if needed
       return;
     }
     // Insert the mapped area (land_areas)
@@ -433,15 +407,6 @@ const Home: React.FC = () => {
     setLandAreas((prev) => [...prev, { user_id: userId, path, id: newLandAreaId }]);
     setShowOwnerModal(false);
     setOwnerName('');
-    setLandReference('');
-    setLandSize('');
-    setLandSizeUnit('');
-    setLandType('');
-    setPropertyElevation('');
-    setBarangay('');
-    setNumOwnedLots('');
-    setTaxStatus('');
-    setDevelopmentStatus('');
     setPath([]);
     setMapping(false);
     setShowToast(true);
@@ -541,17 +506,9 @@ const Home: React.FC = () => {
     if (ownerData) {
       setViewFields({
         ownerName: ownerData.name || '',
-        landReference: ownerData.land_reference || '',
-        landSize: ownerData.land_size || '',
-        landSizeUnit: ownerData.land_size_unit || '',
-        landType: ownerData.land_type || '',
-        propertyElevation: ownerData.property_elevation || '',
-        barangay: ownerData.barangay || '',
-        numOwnedLots: ownerData.num_owned_lots || '',
-        taxStatus: ownerData.tax_status || '',
-        developmentStatus: ownerData.development_status || '',
         areaId: area.id,
         ownerId: ownerData.id,
+        createdAt: ownerData.created_at || '',
       });
       setShowViewModal(true);
     }
@@ -561,15 +518,6 @@ const Home: React.FC = () => {
     if (ownerData) {
       setEditFields({
         ownerName: ownerData.name || '',
-        landReference: ownerData.land_reference || '',
-        landSize: ownerData.land_size || '',
-        landSizeUnit: ownerData.land_size_unit || '',
-        landType: ownerData.land_type || '',
-        propertyElevation: ownerData.property_elevation || '',
-        barangay: ownerData.barangay || '',
-        numOwnedLots: ownerData.num_owned_lots || '',
-        taxStatus: ownerData.tax_status || '',
-        developmentStatus: ownerData.development_status || '',
         areaId: area.id,
         ownerId: ownerData.id,
         path: area.path,
@@ -615,16 +563,20 @@ const Home: React.FC = () => {
     return () => window.removeEventListener('online', handleOnline);
   }, []);
 
-  // Polling: refresh land areas every 5 seconds
+  // Polling: refresh land areas every 5 seconds, only when no modal/popover is open
   React.useEffect(() => {
+    const isAnyModalOpen = showOwnerModal || showEditModal || showViewModal || showPasswordPrompt || showDeleteConfirm || showDeletePasswordPrompt || (areaPopover && areaPopover.open);
+    if (isAnyModalOpen) return;
     const interval = setInterval(() => {
       refreshLandAreas();
     }, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [showOwnerModal, showEditModal, showViewModal, showPasswordPrompt, showDeleteConfirm, showDeletePasswordPrompt, areaPopover]);
 
-  // Supabase Realtime: subscribe to land_areas changes
+  // Supabase Realtime: subscribe to land_areas changes, only when no modal/popover is open
   React.useEffect(() => {
+    const isAnyModalOpen = showOwnerModal || showEditModal || showViewModal || showPasswordPrompt || showDeleteConfirm || showDeletePasswordPrompt || (areaPopover && areaPopover.open);
+    if (isAnyModalOpen) return;
     const channel = supabase
       .channel('realtime:land_areas')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'land_areas' }, payload => {
@@ -634,7 +586,7 @@ const Home: React.FC = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [showOwnerModal, showEditModal, showViewModal, showPasswordPrompt, showDeleteConfirm, showDeletePasswordPrompt, areaPopover]);
 
   return (
     <IonPage>
@@ -751,47 +703,22 @@ const Home: React.FC = () => {
         <IonModal className="dar-modal" isOpen={showOwnerModal} onDidDismiss={() => {
   setShowOwnerModal(false);
   setOwnerName('');
-  setLandReference('');
-  setLandSize('');
-  setLandSizeUnit('');
-  setLandType('');
-  setPropertyElevation('');
-  setBarangay('');
-  setNumOwnedLots('');
-  setTaxStatus('');
-  setDevelopmentStatus('');
+  setPath([]);
+  setMapping(false);
 }}>
-          <div style={{ padding: 24, textAlign: 'center' }}>
-            <IonText><h2>Enter Land Owner's Details</h2></IonText>
-            <IonInput className="dar-input" value={ownerName} onIonChange={e => setOwnerName(e.detail.value!)} placeholder="Owner's Name" style={{ margin: '8px 0' }} />
-            <IonInput className="dar-input" value={landReference} onIonChange={e => setLandReference(e.detail.value!)} placeholder="Land Reference" style={{ margin: '8px 0' }} />
-            <IonInput className="dar-input" value={landSize} type="number" onIonChange={e => setLandSize(e.detail.value!)} placeholder="Land Size" style={{ margin: '8px 0' }} />
-            <IonSelect className="dar-select" value={landSizeUnit} onIonChange={e => setLandSizeUnit(e.detail.value!)} placeholder="Land Size Unit" style={{ margin: '8px 0' }} >
-              <IonSelectOption value="sqm">sqm</IonSelectOption>
-              <IonSelectOption value="hectares">hectares</IonSelectOption>
-            </IonSelect>
-            <IonInput className="dar-input" value={landType} onIonChange={e => setLandType(e.detail.value!)} placeholder="Land Type (e.g. agricultural, residential)" style={{ margin: '8px 0' }} />
-            <IonInput className="dar-input" value={propertyElevation} type="number" onIonChange={e => setPropertyElevation(e.detail.value!)} placeholder="Property Elevation (meters)" style={{ margin: '8px 0' }} />
-            <IonInput className="dar-input" value={barangay} onIonChange={e => setBarangay(e.detail.value!)} placeholder="Barangay / Location" style={{ margin: '8px 0' }} />
-            <IonInput className="dar-input" value={numOwnedLots} type="number" onIonChange={e => setNumOwnedLots(e.detail.value!)} placeholder="Number of Owned Lots" style={{ margin: '8px 0' }} />
-            <IonInput className="dar-input" value={taxStatus} onIonChange={e => setTaxStatus(e.detail.value!)} placeholder="Tax Status or Credit Balance" style={{ margin: '8px 0' }} />
-            <IonInput className="dar-input" value={developmentStatus} onIonChange={e => setDevelopmentStatus(e.detail.value!)} placeholder="Development Status or Upgrade Option" style={{ margin: '8px 0' }} />
-            <IonButton className="dar-btn" expand="block" onClick={saveLandArea} disabled={!ownerName}>Save</IonButton>
-            <IonButton className="dar-btn" expand="block" color="medium" onClick={() => {
-              setShowOwnerModal(false);
-              setOwnerName('');
-              setLandReference('');
-              setLandSize('');
-              setLandSizeUnit('');
-              setLandType('');
-              setPropertyElevation('');
-              setBarangay('');
-              setNumOwnedLots('');
-              setTaxStatus('');
-              setDevelopmentStatus('');
-            }}>Cancel</IonButton>
-          </div>
-        </IonModal>
+  <div style={{ maxWidth: 340, margin: '0 auto', background: 'var(--dar-white)', borderRadius: 16, boxShadow: '0 4px 24px rgba(0,0,0,0.08)', padding: 32, textAlign: 'center' }}>
+    <IonText className="dar-title" style={{ fontSize: '1.3rem', color: 'var(--dar-green)', fontWeight: 700, marginBottom: 12 }}>Enter Land Owner's Name</IonText>
+    <div className="dar-divider" style={{ margin: '16px 0' }}></div>
+    <IonInput className="dar-input" label="Owner's Name" labelPlacement="floating" value={ownerName} onIonChange={e => setOwnerName(e.detail.value!)} placeholder="Owner's Name" style={{ margin: '16px 0', fontSize: '1.1rem' }} />
+    <IonButton className="dar-btn" expand="block" style={{ marginTop: 24 }} onClick={saveLandArea} disabled={!ownerName}>Save</IonButton>
+    <IonButton className="dar-btn" expand="block" color="medium" style={{ marginTop: 8 }} onClick={() => {
+      setShowOwnerModal(false);
+      setOwnerName('');
+      setPath([]);
+      setMapping(false);
+    }}>Cancel</IonButton>
+  </div>
+</IonModal>
         {/* Toast for success and area warning */}
         <IonToast
           isOpen={showToast}
@@ -864,26 +791,15 @@ const Home: React.FC = () => {
           </IonList>
         </IonPopover>
         <IonModal className="dar-modal" isOpen={showEditModal} onDidDismiss={() => { setShowEditModal(false); setEditPassword(''); setEditError(''); }}>
-          <div style={{ padding: 24, textAlign: 'center' }}>
-            <IonText><h2>Edit Land Info</h2></IonText>
-            <IonInput className="dar-input" value={editFields.ownerName} onIonChange={e => setEditFields((prev: any) => ({ ...prev, ownerName: e.detail.value! }))} placeholder="Owner's Name" style={{ margin: '8px 0' }} />
-            <IonInput className="dar-input" value={editFields.landReference} onIonChange={e => setEditFields((prev: any) => ({ ...prev, landReference: e.detail.value! }))} placeholder="Land Reference" style={{ margin: '8px 0' }} />
-            <IonInput className="dar-input" value={editFields.landSize} type="number" onIonChange={e => setEditFields((prev: any) => ({ ...prev, landSize: e.detail.value! }))} placeholder="Land Size" style={{ margin: '8px 0' }} />
-            <IonSelect className="dar-select" value={editFields.landSizeUnit} onIonChange={e => setEditFields((prev: any) => ({ ...prev, landSizeUnit: e.detail.value! }))} placeholder="Land Size Unit" style={{ margin: '8px 0' }} >
-              <IonSelectOption value="sqm">sqm</IonSelectOption>
-              <IonSelectOption value="hectares">hectares</IonSelectOption>
-            </IonSelect>
-            <IonInput className="dar-input" value={editFields.landType} onIonChange={e => setEditFields((prev: any) => ({ ...prev, landType: e.detail.value! }))} placeholder="Land Type (e.g. agricultural, residential)" style={{ margin: '8px 0' }} />
-            <IonInput className="dar-input" value={editFields.propertyElevation} type="number" onIonChange={e => setEditFields((prev: any) => ({ ...prev, propertyElevation: e.detail.value! }))} placeholder="Property Elevation (meters)" style={{ margin: '8px 0' }} />
-            <IonInput className="dar-input" value={editFields.barangay} onIonChange={e => setEditFields((prev: any) => ({ ...prev, barangay: e.detail.value! }))} placeholder="Barangay / Location" style={{ margin: '8px 0' }} />
-            <IonInput className="dar-input" value={editFields.numOwnedLots} type="number" onIonChange={e => setEditFields((prev: any) => ({ ...prev, numOwnedLots: e.detail.value! }))} placeholder="Number of Owned Lots" style={{ margin: '8px 0' }} />
-            <IonInput className="dar-input" value={editFields.taxStatus} onIonChange={e => setEditFields((prev: any) => ({ ...prev, taxStatus: e.detail.value! }))} placeholder="Tax Status or Credit Balance" style={{ margin: '8px 0' }} />
-            <IonInput className="dar-input" value={editFields.developmentStatus} onIonChange={e => setEditFields((prev: any) => ({ ...prev, developmentStatus: e.detail.value! }))} placeholder="Development Status or Upgrade Option" style={{ margin: '8px 0' }} />
-            {editError && <IonText color="danger"><div style={{ margin: '8px 0' }}>{editError}</div></IonText>}
-            <IonButton className="dar-btn" expand="block" onClick={() => setShowPasswordPrompt(true)}>Save</IonButton>
-            <IonButton className="dar-btn" expand="block" color="medium" onClick={() => { setShowEditModal(false); setEditPassword(''); setEditError(''); }}>Cancel</IonButton>
-          </div>
-        </IonModal>
+  <div style={{ maxWidth: 340, margin: '0 auto', background: 'var(--dar-white)', borderRadius: 16, boxShadow: '0 4px 24px rgba(0,0,0,0.08)', padding: 32, textAlign: 'center' }}>
+    <IonText className="dar-title" style={{ fontSize: '1.3rem', color: 'var(--dar-green)', fontWeight: 700, marginBottom: 12 }}>Edit Land Info</IonText>
+    <div className="dar-divider" style={{ margin: '16px 0' }}></div>
+    <IonInput className="dar-input" label="Owner's Name" labelPlacement="floating" value={editFields.ownerName} onIonChange={e => setEditFields((prev: any) => ({ ...prev, ownerName: e.detail.value! }))} placeholder="Owner's Name" style={{ margin: '16px 0', fontSize: '1.1rem' }} />
+    {editError && <IonText color="danger"><div style={{ margin: '8px 0' }}>{editError}</div></IonText>}
+    <IonButton className="dar-btn" expand="block" style={{ marginTop: 24 }} onClick={() => setShowPasswordPrompt(true)}>Save</IonButton>
+    <IonButton className="dar-btn" expand="block" color="medium" style={{ marginTop: 8 }} onClick={() => { setShowEditModal(false); setEditPassword(''); setEditError(''); }}>Cancel</IonButton>
+  </div>
+</IonModal>
         <IonModal className="dar-modal" isOpen={showPasswordPrompt} onDidDismiss={() => { setShowPasswordPrompt(false); setEditPassword(''); setEditError(''); }}>
           <div style={{ padding: 24, textAlign: 'center' }}>
             <IonText><h2>Confirm Password</h2></IonText>
@@ -902,15 +818,6 @@ const Home: React.FC = () => {
               if (editFields.ownerId) {
                 const { error: ownerError } = await supabase.from('owners').update({
                   name: editFields.ownerName,
-                  land_reference: editFields.landReference,
-                  land_size: editFields.landSize ? Number(editFields.landSize) : null,
-                  land_size_unit: editFields.landSizeUnit,
-                  land_type: editFields.landType,
-                  property_elevation: editFields.propertyElevation ? Number(editFields.propertyElevation) : null,
-                  barangay: editFields.barangay,
-                  num_owned_lots: editFields.numOwnedLots ? Number(editFields.numOwnedLots) : null,
-                  tax_status: editFields.taxStatus,
-                  development_status: editFields.developmentStatus,
                 }).eq('id', editFields.ownerId);
                 if (ownerError) { setEditError('Failed to update owner.'); return; }
               }
@@ -974,20 +881,16 @@ const Home: React.FC = () => {
           </div>
         </IonModal>
         <IonModal className="dar-modal" isOpen={showViewModal} onDidDismiss={() => setShowViewModal(false)}>
-          <div style={{ padding: 24, textAlign: 'center' }}>
-            <IonText><h2>Land Info</h2></IonText>
-            <IonLabel><b>Owner's Name:</b> {viewFields.ownerName}</IonLabel><br />
-            <IonLabel><b>Land Reference:</b> {viewFields.landReference}</IonLabel><br />
-            <IonLabel><b>Land Size:</b> {viewFields.landSize} {viewFields.landSizeUnit}</IonLabel><br />
-            <IonLabel><b>Land Type:</b> {viewFields.landType}</IonLabel><br />
-            <IonLabel><b>Property Elevation:</b> {viewFields.propertyElevation}</IonLabel><br />
-            <IonLabel><b>Barangay:</b> {viewFields.barangay}</IonLabel><br />
-            <IonLabel><b>Number of Owned Lots:</b> {viewFields.numOwnedLots}</IonLabel><br />
-            <IonLabel><b>Tax Status:</b> {viewFields.taxStatus}</IonLabel><br />
-            <IonLabel><b>Development Status:</b> {viewFields.developmentStatus}</IonLabel><br />
-            <IonButton className="dar-btn" expand="block" onClick={() => setShowViewModal(false)}>Close</IonButton>
-          </div>
-        </IonModal>
+  <div style={{ maxWidth: 340, margin: '0 auto', background: 'var(--dar-white)', borderRadius: 16, boxShadow: '0 4px 24px rgba(0,0,0,0.08)', padding: 32, textAlign: 'center' }}>
+    <IonText className="dar-title" style={{ fontSize: '1.3rem', color: 'var(--dar-green)', fontWeight: 700, marginBottom: 12 }}>Land Info</IonText>
+    <div className="dar-divider" style={{ margin: '16px 0' }}></div>
+    <IonLabel className="dar-label" style={{ fontSize: '1.1rem', marginBottom: 16, display: 'block' }}><b>Owner's Name:</b><br /><span style={{ color: 'var(--dar-yellow)', fontSize: '1.2rem' }}>{viewFields.ownerName}</span></IonLabel>
+    {viewFields.createdAt && (
+      <IonLabel className="dar-label" style={{ fontSize: '1rem', marginBottom: 12, display: 'block' }}><b>Added At:</b> {new Date(viewFields.createdAt).toLocaleString()}</IonLabel>
+    )}
+    <IonButton className="dar-btn" expand="block" style={{ marginTop: 24 }} onClick={() => setShowViewModal(false)}>Close</IonButton>
+  </div>
+</IonModal>
       </IonContent>
     </IonPage>
   );
