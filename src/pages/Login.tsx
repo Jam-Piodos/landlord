@@ -8,7 +8,8 @@ import {
     IonInputPasswordToggle,  
     IonPage,  
     IonToast,  
-    useIonRouter
+    useIonRouter,
+    IonText
   } from '@ionic/react';
   import { logoIonic } from 'ionicons/icons';
   import { useState, useEffect, useRef } from 'react';
@@ -95,76 +96,40 @@ import {
   
     return (
       <IonPage>
-        <IonContent className='ion-padding'>
+        <IonContent className='ion-padding' style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'var(--dar-white)' }}>
           <div style={{
             display: 'flex',
             flexDirection:'column',
             alignItems: 'center',
             justifyContent: 'center',
-            marginTop:'25%'
+            background: 'var(--dar-gray)',
+            borderRadius: 18,
+            boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+            padding: 32,
+            minWidth: 320,
+            maxWidth: 380,
+            width: '100%',
+            border: '1px solid var(--dar-green)'
           }}>
-            <IonAvatar
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '150px',
-                height: '150px',
-                borderRadius: '50%', 
-                overflow: 'hidden' 
-              }}
-            >
-              <IonIcon 
-                icon={logoIonic}
-                color='primary'
-                style={{ fontSize: '120px', color: '#6c757d' }} 
-              />
+            <IonAvatar style={{ width: '110px', height: '110px', margin: '0 auto 12px auto', background: 'var(--dar-yellow)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <IonIcon icon={logoIonic} style={{ fontSize: '80px', color: 'var(--dar-green)' }} />
             </IonAvatar>
-            <h1 style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>USER LOGIN</h1>
-            <IonInput
-              label="Email" 
-              labelPlacement="floating" 
-              fill="outline"
-              type="email"
-              placeholder="Enter Email"
-              value={email}
-              onIonChange={e => setEmail(e.detail.value!)}
-            />
-            <IonInput style={{ marginTop:'10px' }}      
-              fill="outline"
-              type="password"
-              placeholder="Password"
-              value={password}
-              onIonChange={e => setPassword(e.detail.value!)}
-            >
+            <IonText className="dar-title" style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: 12 }}>USER LOGIN</IonText>
+            <IonInput className="dar-input" label="Email" labelPlacement="floating" fill="outline" type="email" placeholder="Enter Email" value={email} onIonChange={e => setEmail(e.detail.value!)} />
+            <IonInput className="dar-input" style={{ marginTop:'10px' }} fill="outline" type="password" placeholder="Password" value={password} onIonChange={e => setPassword(e.detail.value!)} >
               <IonInputPasswordToggle slot="end"></IonInputPasswordToggle>
             </IonInput>
+            <IonButton className="dar-btn" onClick={doLogin} expand="block" shape='round' style={{ marginTop: 18, marginBottom: 8 }}>Login</IonButton>
+            {showInstall && (
+              <IonButton className="dar-btn" expand="block" color="secondary" shape='round' style={{ marginTop: 8 }} onClick={handleInstallClick}>
+                Install on mobile phone
+              </IonButton>
+            )}
           </div>
-          <IonButton onClick={doLogin} expand="full" shape='round'>
-            Login
-          </IonButton>
-          {showInstall && (
-            <IonButton expand="full" color="secondary" shape='round' style={{ marginTop: 12 }} onClick={handleInstallClick}>
-              Install on mobile phone
-            </IonButton>
-          )}
-  
           {/* Reusable AlertBox Component */}
           <AlertBox message={alertMessage} isOpen={showAlert} onClose={() => setShowAlert(false)} />
-  
           {/* IonToast for success message */}
-          <IonToast
-            isOpen={showToast}
-            onDidDismiss={() => setShowToast(false)}
-            message="Login successful! Redirecting..."
-            duration={1500}
-            position="top"
-            color="primary"
-          />
+          <IonToast className="dar-toast" isOpen={showToast} onDidDismiss={() => setShowToast(false)} message="Login successful! Redirecting..." duration={1500} position="top" color="primary" />
         </IonContent>
       </IonPage>
     );

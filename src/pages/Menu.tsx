@@ -54,26 +54,24 @@ import EditProfilePage from './EditProfile';
     return (
         <IonPage>
             <IonSplitPane contentId="main">
-                <IonMenu contentId="main">
-                    <IonHeader>
-                        <IonToolbar>
-                            <IonTitle>
-                                Menu
-                            </IonTitle>
+                <IonMenu className="dar-menu" contentId="main">
+                    <IonHeader style={{ background: 'var(--dar-green)' }}>
+                        <IonToolbar style={{ background: 'var(--dar-green)' }}>
+                            <IonTitle className="dar-title" style={{ color: 'var(--dar-yellow)', fontWeight: 700 }}>Menu</IonTitle>
                         </IonToolbar>
                     </IonHeader>
-                    <IonContent>
+                    <IonContent style={{ background: 'var(--dar-white)', boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
                         {path.map((item,index) =>(
-                            <IonMenuToggle key={index}>
-                                <IonItem routerLink={item.url} routerDirection="forward">
-                                    <IonIcon icon={item.icon} slot="start"></IonIcon>
-                                    {item.name}
+                            <IonMenuToggle key={index} className="dar-list-item">
+                                <IonItem className="dar-list-item" routerLink={item.url} routerDirection="forward">
+                                    <IonIcon icon={item.icon} slot="start" style={{ color: 'var(--dar-green)' }}></IonIcon>
+                                    <span className="dar-label">{item.name}</span>
                                 </IonItem>
                             </IonMenuToggle>
                         ))}
 
                        {/* Logout Button */}
-                       <IonButton expand="full" onClick={handleLogout}>
+                       <IonButton className="dar-btn" expand="block" onClick={handleLogout} style={{ marginTop: 18 }}>
                             <IonIcon icon={logOutOutline} slot="start"></IonIcon>
                             Logout
                         </IonButton>
@@ -93,23 +91,10 @@ import EditProfilePage from './EditProfile';
                 </IonRouterOutlet>
 
                 {/* IonAlert for displaying login errors */}
-                <IonAlert
-                    isOpen={showAlert}
-                    onDidDismiss={() => setShowAlert(false)}
-                    header="Logout Failed"
-                    message={errorMessage}
-                    buttons={['OK']}
-                />
+                <IonAlert className="dar-toast" isOpen={showAlert} onDidDismiss={() => setShowAlert(false)} header="Logout Failed" message={errorMessage} buttons={['OK']} />
                 
                 {/* IonToast for success message */}
-                <IonToast
-                    isOpen={showToast}
-                    onDidDismiss={() => setShowToast(false)}
-                    message="Logout Successful"
-                    duration={1500}
-                    position="top"
-                    color="primary"
-                />
+                <IonToast className="dar-toast" isOpen={showToast} onDidDismiss={() => setShowToast(false)} message="Logout Successful" duration={1500} position="top" color="primary" />
 
             </IonSplitPane>
         </IonPage>
