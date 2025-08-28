@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Landlord</string>
+    <string name="title_activity_main">Landlord</string>
+    <string name="package_name">com.landlord.app</string>
+    <string name="custom_url_scheme">com.landlord.app</string>
+</resources>

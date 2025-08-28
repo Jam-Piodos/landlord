@@ -15,15 +15,21 @@ import {
       IonTitle, 
       IonToast, 
       IonToolbar, 
-      useIonRouter
+      useIonRouter,
+      IonLabel,
+      IonText,
+      IonList,
+      IonCard,
+      IonCardContent,
+      IonCardHeader
   } from '@ionic/react'
-  import {homeOutline, logOutOutline, rocketOutline, settingsOutline} from 'ionicons/icons';
+  import {homeOutline, logOutOutline, rocketOutline, settingsOutline, clipboardOutline} from 'ionicons/icons';
 import { Redirect, Route } from 'react-router';
 import Home from './Home';
 import About from './About';
 import Details from './Details';
 import { supabase } from '../utils/supabaseClient';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import EditProfilePage from './EditProfile';
 
 
@@ -32,12 +38,53 @@ import EditProfilePage from './EditProfile';
     const [showAlert, setShowAlert] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     const [showToast, setShowToast] = useState(false);
+    const [tasks, setTasks] = useState<any[]>([]);
+    const [landAreas, setLandAreas] = useState<any[]>([]);
+    const [currentUserId, setCurrentUserId] = useState<number | null>(null);
     
     const path = [
         {name:'Home', url: '/landlord/app/home', icon: homeOutline},
         {name:'About', url: '/landlord/app/about', icon: rocketOutline},
         {name:'Profile', url: '/landlord/app/profile', icon: settingsOutline},
     ]
+
+    // Fetch tasks and land areas for the current user
+    useEffect(() => {
+        const fetchAssignments = async () => {
+            const { data: authData } = await supabase.auth.getUser();
+            const userEmail = authData?.user?.email;
+            let userId: number | null = null;
+            
+            if (userEmail) {
+                const { data: userRow, error: userError } = await supabase
+                    .from('users')
+                    .select('user_id')
+                    .eq('user_email', userEmail)
+                    .single();
+                if (!userError && userRow?.user_id) {
+                    userId = userRow.user_id;
+                }
+            }
+            
+            if (userId) {
+                // Use the assigned_polygons view so counts match the map
+                const { data, error } = await supabase
+                    .from('assigned_polygons')
+                    .select('task_id, assigned_to, land_area_id, path')
+                    .eq('assigned_to', userId);
+                if (!error && data) {
+                    setTasks(data);
+                    // Count unique land areas
+                    const uniqueAreaIds = Array.from(new Set(data.map((r: any) => String(r.land_area_id))));
+                    setLandAreas(uniqueAreaIds.map((id: string) => ({ id })) as any);
+                }
+                setCurrentUserId(userId);
+            }
+        };
+        
+        fetchAssignments();
+    }, []);
+
     const handleLogout = async () => {
         const { error } = await supabase.auth.signOut();
         if (!error) {
@@ -55,24 +102,86 @@ import EditProfilePage from './EditProfile';
         <IonPage>
             <IonSplitPane contentId="main">
                 <IonMenu className="dar-menu" contentId="main">
-                    <IonHeader style={{ background: 'var(--dar-green)' }}>
-                        <IonToolbar style={{ background: 'var(--dar-green)' }}>
-                            <IonTitle className="dar-title" style={{ color: 'var(--dar-yellow)', fontWeight: 700 }}>Menu</IonTitle>
+                    <IonHeader style={{ background: 'linear-gradient(135deg, #2E7D32 0%, #388E3C 100%)' }}>
+                        <IonToolbar style={{ background: 'transparent' }}>
+                            <IonTitle className="dar-title" style={{ color: '#FFD700', fontWeight: 700 }}>Menu</IonTitle>
                         </IonToolbar>
                     </IonHeader>
-                    <IonContent style={{ background: 'var(--dar-white)', boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
+                    <IonContent style={{ background: 'rgba(46, 125, 50, 0.05)', boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
                         {path.map((item,index) =>(
                             <IonMenuToggle key={index} className="dar-list-item">
-                                <IonItem className="dar-list-item" routerLink={item.url} routerDirection="forward">
-                                    <IonIcon icon={item.icon} slot="start" style={{ color: 'var(--dar-green)' }}></IonIcon>
-                                    <span className="dar-label">{item.name}</span>
+                                <IonItem className="dar-list-item" routerLink={item.url} routerDirection="forward" style={{ '--background': 'rgba(46, 125, 50, 0.1)', '--color': '#2E7D32' }}>
+                                    <IonIcon icon={item.icon} slot="start" style={{ color: '#2E7D32' }}></IonIcon>
+                                    <span className="dar-label" style={{ color: '#2E7D32' }}>{item.name}</span>
                                 </IonItem>
                             </IonMenuToggle>
                         ))}
 
+                        {/* Assignments Section */}
+                        {currentUserId && (
+                            <div style={{ marginTop: 24, padding: '0 16px' }}>
+                                <IonText style={{ color: '#2E7D32', fontWeight: 600, fontSize: '1rem' }}>
+                                    <IonIcon icon={clipboardOutline} style={{ marginRight: 8, color: '#2E7D32' }} />
+                                    Your Assignments
+                                </IonText>
+                                
+                                {tasks.length > 0 ? (
+                                    <div style={{ marginTop: 12 }}>
+                                        {tasks.map((task, index) => (
+                                            <IonCard 
+                                                key={index} 
+                                                style={{ 
+                                                    marginBottom: 8, 
+                                                    background: 'rgba(46, 125, 50, 0.1)', 
+                                                    border: '1px solid rgba(46, 125, 50, 0.3)',
+                                                    cursor: 'pointer'
+                                                }}
+                                                onClick={() => {
+                                                    // Navigate to home page with task context
+                                                    navigation.push('/landlord/app/home', 'forward', 'replace');
+                                                    // Store the selected task in localStorage for Home component to access
+                                                    localStorage.setItem('selectedTask', JSON.stringify(task));
+                                                }}
+                                            >
+                                                <IonCardHeader style={{ padding: '12px 16px' }}>
+                                                    <IonText style={{ fontSize: '0.9rem', fontWeight: 600, color: '#2E7D32' }}>
+                                                        Task #{task.id}
+                                                    </IonText>
+                                                </IonCardHeader>
+                                                <IonCardContent style={{ padding: '0 16px 12px' }}>
+                                                    <IonText style={{ fontSize: '0.8rem', color: '#2E7D32' }}>
+                                                        Land Area: {task.land_area_id}
+                                                    </IonText>
+                                                    <div style={{ marginTop: 4, fontSize: '0.8rem', color: '#388E3C', fontStyle: 'italic' }}>
+                                                        Click to start surveying
+                                                    </div>
+                                                </IonCardContent>
+                                            </IonCard>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <IonCard style={{ marginTop: 12, background: 'rgba(46, 125, 50, 0.1)', border: '1px solid rgba(46, 125, 50, 0.3)' }}>
+                                        <IonCardHeader style={{ padding: '12px 16px' }}>
+                                            <IonText style={{ fontSize: '0.9rem', fontWeight: 600, color: '#2E7D32' }}>
+                                                Tasks: 0
+                                            </IonText>
+                                        </IonCardHeader>
+                                        <IonCardContent style={{ padding: '0 16px 12px' }}>
+                                            <IonText style={{ fontSize: '0.8rem', color: '#2E7D32' }}>
+                                                Land Areas: {landAreas.length}
+                                            </IonText>
+                                            <div style={{ marginTop: 8, fontSize: '0.8rem', color: '#388E3C', fontStyle: 'italic' }}>
+                                                No surveying tasks assigned
+                                            </div>
+                                        </IonCardContent>
+                                    </IonCard>
+                                )}
+                            </div>
+                        )}
+
                        {/* Logout Button */}
-                       <IonButton className="dar-btn" expand="block" onClick={handleLogout} style={{ marginTop: 18 }}>
-                            <IonIcon icon={logOutOutline} slot="start"></IonIcon>
+                       <IonButton className="dar-btn" expand="block" onClick={handleLogout} style={{ marginTop: 18, background: 'linear-gradient(135deg, #2E7D32 0%, #388E3C 100%)', color: '#FFD700' }}>
+                            <IonIcon icon={logOutOutline} slot="start" style={{ color: '#FFD700' }}></IonIcon>
                             Logout
                         </IonButton>
                         
