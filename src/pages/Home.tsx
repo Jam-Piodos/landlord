@@ -182,13 +182,24 @@ function normalizePathToLatLngArray(raw: any): [number, number][] | null {
   }
   // If already array
   if (Array.isArray(value)) {
-    // Could be [[lat,lng], ...] or [[[lat,lng],...]]
     const first = value[0];
+    // Case: array of number pairs [[lat,lng], ...] or [[[...]]]
     if (Array.isArray(first) && typeof first[0] === 'number') {
       return normalizeArrayOfPairs(value as any);
     }
     if (Array.isArray(first) && Array.isArray(first[0])) {
       return normalizeArrayOfPairs(first as any);
+    }
+    // Case: array of objects [{lat,lng}] or [{latitude, longitude}]
+    if (first && typeof first === 'object') {
+      const toPairs = (arr: any[]): any[] => arr.map((pt: any) => {
+        const lat = pt.lat ?? pt.latitude ?? pt.y;
+        const lng = pt.lng ?? pt.longitude ?? pt.x;
+        if (typeof lat === 'number' && typeof lng === 'number') return [lat, lng];
+        return null;
+      }).filter(Boolean);
+      const pairs = toPairs(value);
+      if (pairs.length >= 3) return normalizeArrayOfPairs(pairs as any);
     }
   }
   return null;
@@ -328,12 +339,12 @@ const Home: React.FC = () => {
       console.log('Current user ID:', currentUserId);
       
       if (currentUserId) {
-        const { data, error } = await supabase
+      const { data, error } = await supabase
           .from('assigned_polygons')
           .select('task_id, assigned_to, land_area_id, path')
           .eq('assigned_to', currentUserId);
 
-        if (error) {
+      if (error) {
           console.error(error);
           setLandAreas([]);
           setTasks([]);
@@ -483,6 +494,11 @@ const Home: React.FC = () => {
       setRouteCoords([]);
       setRouteInfo(null);
     }
+  }
+
+  function openGoogleMapsDirections(from: [number, number], to: [number, number]) {
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${from[0]},${from[1]}&destination=${to[0]},${to[1]}&travelmode=driving`;
+    window.open(url, '_blank');
   }
 
   // Mapping controls (only visible during mapping)
@@ -643,18 +659,25 @@ const Home: React.FC = () => {
     return () => window.removeEventListener('online', handleOnline);
   }, []);
 
-  const ENABLE_POLLING = false;
-  const ENABLE_REALTIME = false;
-  // Polling: refresh land areas every 5 seconds, only when no modal/popover is open
+  const ENABLE_POLLING = true; // enable light polling
+  const ENABLE_REALTIME = true; // enable realtime updates
+  // Polling: refresh land areas every 8 seconds, only when no modal/popover is open
   React.useEffect(() => {
     if (!ENABLE_POLLING) return;
     const isAnyModalOpen = showOwnerModal || showEditModal || showViewModal || showPasswordPrompt || showDeleteConfirm || showDeletePasswordPrompt || (areaPopover && areaPopover.open);
     if (isAnyModalOpen) return;
     const interval = setInterval(() => {
       refreshLandAreas();
-    }, 5000);
+    }, 8000);
     return () => clearInterval(interval);
   }, [showOwnerModal, showEditModal, showViewModal, showPasswordPrompt, showDeleteConfirm, showDeletePasswordPrompt, areaPopover]);
+
+  // Refresh when tab becomes visible
+  React.useEffect(() => {
+    const onVis = () => { if (document.visibilityState === 'visible') refreshLandAreas(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
 
   // Supabase Realtime: subscribe to tasks and land_areas changes, only when no modal/popover is open
   React.useEffect(() => {
@@ -664,14 +687,14 @@ const Home: React.FC = () => {
     
     const tasksChannel = supabase
       .channel('realtime:tasks')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, payload => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
         refreshLandAreas();
       })
       .subscribe();
       
     const landAreasChannel = supabase
       .channel('realtime:land_areas')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'land_areas' }, payload => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'land_areas' }, () => {
         refreshLandAreas();
       })
       .subscribe();
@@ -818,7 +841,7 @@ const Home: React.FC = () => {
     </IonText>
     <div className="dar-divider" style={{ margin: '16px 0' }}></div>
     {!selectedArea || !selectedArea.id ? (
-      <IonInput className="dar-input" label="Owner's Name" labelPlacement="floating" value={ownerName} onIonChange={e => setOwnerName(e.detail.value!)} placeholder="Owner's Name" style={{ margin: '16px 0', fontSize: '1.1rem' }} />
+    <IonInput className="dar-input" label="Owner's Name" labelPlacement="floating" value={ownerName} onIonChange={e => setOwnerName(e.detail.value!)} placeholder="Owner's Name" style={{ margin: '16px 0', fontSize: '1.1rem' }} />
     ) : (
       <IonText style={{ margin: '16px 0', fontSize: '1.1rem', color: 'var(--dar-medium)' }}>
         Surveying land area {selectedArea.id}
@@ -898,9 +921,15 @@ const Home: React.FC = () => {
               <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <IonButton color="success" onClick={() => { if (viewFields.areaId) { startUpdatePoints({ id: viewFields.areaId, path: [] }); } }}>Update Points</IonButton>
-                  {position && (
-                    <IonButton color="tertiary" onClick={() => { handleGetDirections({ nativeEvent: { target: null } }); setShowViewModal(false); }}>Directions</IonButton>
-                  )}
+                 {position && (
+                    <IonButton color="tertiary" onClick={() => {
+                      const area = landAreas.find(a => a.id === (viewFields.areaId || editFields.areaId));
+                      const dest = area ? getPolygonCentroid(area.path) : null;
+                      if (dest) {
+                        openGoogleMapsDirections(position, dest);
+                      }
+                    }}>Directions</IonButton>
+                 )}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <IonButton color="medium" onClick={() => setViewEditMode(!viewEditMode)}>{viewEditMode ? 'Cancel Edit' : 'Edit'}</IonButton>
@@ -928,6 +957,22 @@ const Home: React.FC = () => {
                       await refreshLandAreas();
                     }
                   }}>Save</IonButton>
+                 <IonButton color="danger" onClick={async () => {
+                   const areaId = viewFields.areaId || editFields.areaId;
+                   if (!areaId || !currentUserId) return;
+                   // Mark task done by removing it from tasks for this user and land area
+                   const { error } = await supabase
+                     .from('tasks')
+                     .update({ status: 'done', updated_at: new Date().toISOString() })
+                     .match({ assigned_to: currentUserId, land_area_id: areaId });
+
+                   if (!error) {
+                     await refreshLandAreas();
+                     setSelectedArea(null);
+                   } else {
+                     console.error('Mark done failed:', error);
+                   }
+                 }}>Task Done</IonButton>
                 </div>
               </div>
             </div>
@@ -957,13 +1002,13 @@ const Home: React.FC = () => {
             }}>
                 <IonIcon icon={eyeOutline} slot="start" style={{ color: '#FFD700' }} />
                 <span style={{ fontWeight: 600 }}>View Land Info</span>
-              </IonItem>
+            </IonItem>
               <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '0 12px' }} />
               <IonItem className="dar-list-item" button detail={false} style={{ '--min-height': '46px', '--background': 'transparent', '--color': '#fff' }} onClick={() => setAreaPopover(null)}>
                 <IonIcon icon={closeIcon} slot="start" style={{ color: '#bbb' }} />
                 <span style={{ fontWeight: 600 }}>Nevermind</span>
-              </IonItem>
-            </IonList>
+            </IonItem>
+          </IonList>
           </div>
         </IonPopover>
         <IonModal isOpen={showEditModal} onDidDismiss={() => { setShowEditModal(false); setEditPassword(''); setEditError(''); }}>
@@ -1051,8 +1096,8 @@ const Home: React.FC = () => {
               await refreshLandAreas();
             }}>Confirm Delete</IonButton>
             <IonButton className="dar-btn" expand="block" color="medium" onClick={() => { setShowDeletePasswordPrompt(false); setDeletePassword(''); setDeleteError(''); setDeleteTarget(null); }}>Cancel</IonButton>
-          </div>
-        </IonModal>
+  </div>
+</IonModal>
       </IonContent>
     </IonPage>
   );
