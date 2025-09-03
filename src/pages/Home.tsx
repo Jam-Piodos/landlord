@@ -269,6 +269,25 @@ const Home: React.FC = () => {
   const [viewFields, setViewFields] = useState<any>({});
   const [viewEditMode, setViewEditMode] = useState(false);
   const editingAreaIdRef = useRef<string | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+
+  // Ensure Leaflet recalculates size after layout/viewport changes (fixes partial render top-left issue)
+  useEffect(() => {
+    if (!mapReady) return;
+    const invalidate = () => {
+      try { (mapRef.current as any)?.invalidateSize?.(); } catch {}
+    };
+    const t = setTimeout(invalidate, 50);
+    window.addEventListener('resize', invalidate);
+    window.addEventListener('orientationchange', invalidate as any);
+    document.addEventListener('visibilitychange', invalidate);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener('resize', invalidate);
+      window.removeEventListener('orientationchange', invalidate as any);
+      document.removeEventListener('visibilitychange', invalidate);
+    };
+  }, [mapReady]);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -737,13 +756,32 @@ const Home: React.FC = () => {
         {mappingStatus}
         */}
         {mappingFABs}
-        {position && markerIcon && (
-          <div style={{ width: '100vw', height: 'calc(100vh - 56px)', position: 'relative' }}>
-            <MapContainer center={position} zoom={18} style={{ width: '100%', height: '100%' }} ref={mapRef}>
-              <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" />
+        <div style={{ position: 'fixed', top: 56, left: 0, right: 0, bottom: 0 }}>
+          <MapContainer
+            center={[11.6352, 123.7079]}
+            zoom={5}
+            style={{ width: '100%', height: '100%' }}
+            ref={mapRef}
+            preferCanvas={true}
+            zoomAnimation={false}
+            fadeAnimation={false}
+            markerZoomAnimation={false}
+            whenReady={() => setMapReady(true)}
+          >
+            <TileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution="&copy; OpenStreetMap contributors"
+              maxZoom={19}
+              keepBuffer={1}
+              detectRetina={true}
+            />
               {/* Only one marker for the user's current position */}
-              <Marker position={position} icon={markerIcon} />
-              <Circle center={position} radius={10} pathOptions={{ color: 'red', fillColor: 'red', fillOpacity: 0.3 }} />
+              {position && markerIcon && (
+                <>
+                  <Marker position={position} icon={markerIcon} />
+                  <Circle center={position} radius={10} pathOptions={{ color: 'red', fillColor: 'red', fillOpacity: 0.3 }} />
+                </>
+              )}
               {/* Draw current mapping path and preview area */}
               {mapping && (
                 <>
@@ -765,8 +803,8 @@ const Home: React.FC = () => {
                   )}
                 </>
               )}
-              {/* Draw all saved land areas */}
-              {!mapping && landAreas.map((area, idx) => (
+              {/* Draw all saved land areas (deferred until map is ready) */}
+              {!mapping && mapReady && landAreas.map((area, idx) => (
                 <React.Fragment key={`poly-${idx}`}>
                   <Polygon
                     positions={area.path}
@@ -809,7 +847,7 @@ const Home: React.FC = () => {
               ))}
               {/* Show label for selected area */}
               {selectedArea && <ZoomToArea area={selectedArea} />}
-              {directions && (
+              {directions && position && (
                 <>
                   {/* Line to centroid (green) */}
                   <Polyline positions={[position, directions.centroid]} pathOptions={{ color: 'green', weight: 4, dashArray: '8 8' }} />
@@ -824,10 +862,8 @@ const Home: React.FC = () => {
               {routeCoords.length > 1 && (
                 <Polyline positions={routeCoords} pathOptions={{ color: 'orange', weight: 5 }} />
               )}
-            </MapContainer>
-          </div>
-        )}
-        {!position && <div>Loading map...</div>}
+          </MapContainer>
+        </div>
         {/* Modal for owner name input */}
         <IonModal isOpen={showOwnerModal} onDidDismiss={() => {
   setShowOwnerModal(false);
