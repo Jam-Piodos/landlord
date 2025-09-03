@@ -270,6 +270,10 @@ const Home: React.FC = () => {
   const [viewEditMode, setViewEditMode] = useState(false);
   const editingAreaIdRef = useRef<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [showEditSuccess, setShowEditSuccess] = useState(false);
+  const [showEditError, setShowEditError] = useState(false);
+  const [editErrorMsg, setEditErrorMsg] = useState('');
 
   // Ensure Leaflet recalculates size after layout/viewport changes (fixes partial render top-left issue)
   useEffect(() => {
@@ -566,6 +570,120 @@ const Home: React.FC = () => {
       .filter((a: any) => Array.isArray(a.path) && a.path.length >= 3);
     setLandAreas(polygons);
   };
+
+  // Helper: sanitize and trim edit fields
+  function buildUpdatePayload(from: any) {
+    const trimOrUndef = (v: any) => {
+      if (v === undefined || v === null) return undefined;
+      if (typeof v === 'string') {
+        const t = v.trim();
+        return t.length === 0 ? undefined : t;
+      }
+      return v;
+    };
+    return {
+      lhid: trimOrUndef(from.lhid),
+      lo_name: trimOrUndef(from.ownerName),
+      moa: trimOrUndef(from.moa),
+      title_number: trimOrUndef(from.titleNumber),
+      survey_number: trimOrUndef(from.surveyNumber),
+      lot_number: trimOrUndef(from.lotNumber),
+      barangay_name: trimOrUndef(from.barangay),
+      total_area: trimOrUndef(from.totalArea),
+      current_status: trimOrUndef(from.status),
+      current_status_desc: trimOrUndef(from.statusDesc),
+      problem_category: trimOrUndef(from.problemCategory),
+      sub_category: trimOrUndef(from.subCategory),
+      remarks: trimOrUndef(from.remarks),
+      path: from.path ?? undefined,
+    } as any;
+  }
+
+  // Compute only changed fields to minimize payload
+  function computeChangedFields(fields: any, current: any) {
+    const map: Record<string, string> = {
+      lhid: 'lhid',
+      ownerName: 'ownerName',
+      moa: 'moa',
+      titleNumber: 'titleNumber',
+      surveyNumber: 'surveyNumber',
+      lotNumber: 'lotNumber',
+      barangay: 'barangay',
+      totalArea: 'totalArea',
+      status: 'status',
+      statusDesc: 'statusDesc',
+      problemCategory: 'problemCategory',
+      subCategory: 'subCategory',
+      remarks: 'remarks'
+    };
+    const changed: any = {};
+    Object.keys(map).forEach((k) => {
+      const newVal = (fields as any)[k];
+      const curVal = (current as any)?.[map[k]];
+      if (newVal !== undefined && newVal !== curVal) {
+        (changed as any)[k] = newVal;
+      }
+    });
+    if (fields.path !== undefined) changed.path = fields.path;
+    return changed;
+  }
+
+  // Centralized save function for edits (optimistic UI + refresh)
+  async function saveEdits(areaId: any, fields: any) {
+    setSavingEdit(true);
+    setEditError('');
+    try {
+      const numericId = typeof areaId === 'string' ? Number(areaId) : areaId;
+      const idToUse = Number.isFinite(numericId) ? numericId : areaId;
+      // Only send changed fields relative to what is shown
+      const changedFields = computeChangedFields(fields, viewFields);
+      const payload = buildUpdatePayload(changedFields);
+      // Remove undefined keys to avoid overwriting unintentionally
+      Object.keys(payload).forEach((k) => payload[k] === undefined && delete payload[k]);
+      if (Object.keys(payload).length === 0) {
+        // Nothing to save; still show success and exit early
+        setShowEditSuccess(true);
+        return { error: null };
+      }
+      const { error } = await supabase
+        .from('land_areas')
+        .update(payload)
+        .eq('id', idToUse);
+      if (error) {
+        setEditError('Failed to update land area.');
+        setEditErrorMsg(error.message || 'Update failed');
+        setShowEditError(true);
+        return { error };
+      }
+      // Optimistically hydrate from local edited values
+      setViewFields((prev: any) => ({
+        ...prev,
+        areaId: idToUse,
+        lhid: fields.lhid ?? prev?.lhid ?? '',
+        ownerName: fields.ownerName ?? prev?.ownerName ?? '',
+        moa: fields.moa ?? prev?.moa ?? '',
+        titleNumber: fields.titleNumber ?? prev?.titleNumber ?? '',
+        surveyNumber: fields.surveyNumber ?? prev?.surveyNumber ?? '',
+        lotNumber: fields.lotNumber ?? prev?.lotNumber ?? '',
+        barangay: fields.barangay ?? prev?.barangay ?? '',
+        totalArea: fields.totalArea ?? prev?.totalArea ?? '',
+        status: fields.status ?? prev?.status ?? '',
+        statusDesc: fields.statusDesc ?? prev?.statusDesc ?? '',
+        problemCategory: fields.problemCategory ?? prev?.problemCategory ?? '',
+        subCategory: fields.subCategory ?? prev?.subCategory ?? '',
+        remarks: fields.remarks ?? prev?.remarks ?? ''
+      }));
+      setEditFields((prev: any) => ({ ...prev, ...fields }));
+      // Force re-render of view modal if open
+      setSelectedArea((prev: any) => (prev && prev.id === idToUse ? { ...prev } : prev));
+      setShowEditSuccess(true);
+      // Reload once to ensure all views reflect latest data
+      setTimeout(() => { try { window.location.reload(); } catch {} }, 300);
+      return { error: null };
+    } finally {
+      setSavingEdit(false);
+    }
+  }
 
   // When opening View Land Info or Edit Land Info, fetch info from land_areas by id
   const openViewLandInfo = async (area: any) => {
@@ -905,6 +1023,22 @@ const Home: React.FC = () => {
           position="top"
           color={'success'}
         />
+        <IonToast
+          isOpen={showEditSuccess}
+          onDidDismiss={() => setShowEditSuccess(false)}
+          message={'Updated successfully'}
+          duration={1200}
+          position="top"
+          color={'success'}
+        />
+        <IonToast
+          isOpen={showEditError}
+          onDidDismiss={() => setShowEditError(false)}
+          message={editErrorMsg || 'Update failed'}
+          duration={2000}
+          position="top"
+          color={'danger'}
+        />
         {/* Modal for area details */}
         <IonModal isOpen={!!selectedArea} onDidDismiss={() => { setSelectedArea(null); setDirections(null); setRouteCoords([]); setRouteInfo(null); setDirectionsPopover(null); }}>
           <div style={{ padding: 0 }}>
@@ -957,41 +1091,15 @@ const Home: React.FC = () => {
               <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <IonButton color="success" onClick={() => { if (viewFields.areaId) { startUpdatePoints({ id: viewFields.areaId, path: [] }); } }}>Update Points</IonButton>
-                 {position && (
-                    <IonButton color="tertiary" onClick={() => {
-                      const area = landAreas.find(a => a.id === (viewFields.areaId || editFields.areaId));
-                      const dest = area ? getPolygonCentroid(area.path) : null;
-                      if (dest) {
-                        openGoogleMapsDirections(position, dest);
-                      }
-                    }}>Directions</IonButton>
-                 )}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <IonButton color="medium" onClick={() => setViewEditMode(!viewEditMode)}>{viewEditMode ? 'Cancel Edit' : 'Edit'}</IonButton>
-                  <IonButton color="primary" disabled={!viewEditMode} onClick={async () => {
+                  <IonButton color="primary" disabled={!viewEditMode || savingEdit} onClick={async () => {
                     if (!viewEditMode) return;
                     const areaId = viewFields.areaId || editFields.areaId;
                     if (!areaId) return;
-                    const { error } = await supabase.from('land_areas').update({
-                      lhid: editFields.lhid ?? null,
-                      lo_name: editFields.ownerName ?? null,
-                      moa: editFields.moa ?? null,
-                      title_number: editFields.titleNumber ?? null,
-                      survey_number: editFields.surveyNumber ?? null,
-                      lot_number: editFields.lotNumber ?? null,
-                      barangay_name: editFields.barangay ?? null,
-                      total_area: editFields.totalArea ?? null,
-                      current_status: editFields.status ?? null,
-                      current_status_desc: editFields.statusDesc ?? null,
-                      problem_category: editFields.problemCategory ?? null,
-                      sub_category: editFields.subCategory ?? null,
-                      remarks: editFields.remarks ?? null,
-                    }).eq('id', areaId);
-                    if (!error) {
-                      setViewEditMode(false);
-                      await refreshLandAreas();
-                    }
+                    const { error } = await saveEdits(areaId, editFields);
+                    if (!error) setViewEditMode(false);
                   }}>Save</IonButton>
                  <IonButton color="danger" onClick={async () => {
                    const areaId = viewFields.areaId || editFields.areaId;
@@ -1053,51 +1161,19 @@ const Home: React.FC = () => {
     <div className="dar-divider" style={{ margin: '16px 0' }}></div>
     <IonInput className="dar-input" label="Owner's Name" labelPlacement="floating" value={editFields.ownerName} onIonChange={e => setEditFields((prev: any) => ({ ...prev, ownerName: e.detail.value! }))} placeholder="Owner's Name" style={{ margin: '16px 0', fontSize: '1.1rem' }} />
     {editError && <IonText color="danger"><div style={{ margin: '8px 0' }}>{editError}</div></IonText>}
-    <IonButton className="dar-btn" expand="block" style={{ marginTop: 24 }} onClick={() => setShowPasswordPrompt(true)}>Save</IonButton>
+    <IonButton className="dar-btn" expand="block" style={{ marginTop: 24 }} disabled={savingEdit} onClick={async () => {
+      if (!editFields.areaId) return;
+      const { error } = await saveEdits(editFields.areaId, editFields);
+      if (!error) {
+        setShowEditModal(false);
+        setEditPassword('');
+        setEditError('');
+      }
+    }}>Save</IonButton>
     <IonButton className="dar-btn" expand="block" color="medium" style={{ marginTop: 8 }} onClick={() => { setShowEditModal(false); setEditPassword(''); setEditError(''); }}>Cancel</IonButton>
   </div>
 </IonModal>
-        <IonModal isOpen={showPasswordPrompt} onDidDismiss={() => { setShowPasswordPrompt(false); setEditPassword(''); setEditError(''); }}>
-          <div style={{ padding: 24, textAlign: 'center' }}>
-            <IonText><h2>Confirm Password</h2></IonText>
-            <IonInput className="dar-input" type="password" value={editPassword} onIonChange={e => setEditPassword(e.detail.value!)} placeholder="Enter your password" style={{ margin: '16px 0' }} />
-            {editError && <IonText color="danger"><div style={{ margin: '8px 0' }}>{editError}</div></IonText>}
-            <IonButton className="dar-btn" expand="block" onClick={async () => {
-              setEditError('');
-              // Get current user email
-              const { data: authData } = await supabase.auth.getUser();
-              const userEmail = authData?.user?.email;
-              if (!userEmail) { setEditError('No user.'); return; }
-              // Try to sign in with password
-              const { error: pwError } = await supabase.auth.signInWithPassword({ email: userEmail, password: editPassword });
-              if (pwError) { setEditError('Incorrect password.'); return; }
-              // Update land_areas with edited fields
-              if (editFields.areaId) {
-                const { error: landError } = await supabase.from('land_areas').update({
-                  lo_name: editFields.ownerName,
-                  path: editFields.path,
-                  title_number: editFields.titleNumber,
-                  survey_number: editFields.surveyNumber,
-                  lot_number: editFields.lotNumber,
-                  barangay_name: editFields.barangay,
-                  total_area: editFields.totalArea,
-                  current_status: editFields.status,
-                  current_status_desc: editFields.statusDesc,
-                  problem_category: editFields.problemCategory,
-                  sub_category: editFields.subCategory,
-                  remarks: editFields.remarks,
-                }).eq('id', editFields.areaId);
-                if (landError) { setEditError('Failed to update land area.'); return; }
-              }
-              setShowEditModal(false);
-              setShowPasswordPrompt(false);
-              setEditPassword('');
-              setEditError('');
-              await refreshLandAreas();
-            }}>Confirm</IonButton>
-            <IonButton className="dar-btn" expand="block" color="medium" onClick={() => { setShowPasswordPrompt(false); setEditPassword(''); setEditError(''); }}>Cancel</IonButton>
-          </div>
-        </IonModal>
+        {/* Password prompt temporarily removed for direct-save UX */}
         <IonModal isOpen={showDeleteConfirm} onDidDismiss={() => { setShowDeleteConfirm(false); setDeletePassword(''); setDeleteError(''); }}>
           <div style={{ padding: 24, textAlign: 'center' }}>
             <IonText color="danger"><h2>Delete Land Area?</h2></IonText>
