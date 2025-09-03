@@ -677,8 +677,8 @@ const Home: React.FC = () => {
       // Force re-render of view modal if open
       setSelectedArea((prev: any) => (prev && prev.id === idToUse ? { ...prev } : prev));
       setShowEditSuccess(true);
-      // Reload once to ensure all views reflect latest data
-      setTimeout(() => { try { window.location.reload(); } catch {} }, 300);
+      // Refresh in background without blocking
+      setTimeout(() => { refreshLandAreas(); }, 0);
       return { error: null };
     } finally {
       setSavingEdit(false);
