@@ -1,0 +1,130 @@
+/* DAR Minimalist Professional Theme */
+:root {
+  --dar-yellow: #FFD600;
+  --dar-green: #00743F;
+  --dar-dark-green: #004225;
+  --dar-white: #FFFFFF;
+  --dar-gray: #F5F5F5;
+  --dar-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  --dar-radius: 16px;
+  --dar-font: 'Inter', 'Segoe UI', Arial, sans-serif;
+}
+
+body, .ion-content {
+  background: var(--dar-gray);
+  color: var(--dar-dark-green);
+  font-family: var(--dar-font);
+}
+
+.dar-modal, .dar-card, .dar-popover {
+  background: var(--dar-white);
+  border-radius: var(--dar-radius);
+  box-shadow: var(--dar-shadow);
+  padding: 32px;
+  max-width: 340px;
+  margin: 0 auto;
+}
+
+.dar-title {
+  color: var(--dar-green);
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+  letter-spacing: 0.01em;
+}
+
+.dar-divider {
+  border-bottom: 1px solid var(--dar-green);
+  margin: 16px 0;
+}
+
+.dar-btn, .ion-button {
+  background: var(--dar-green);
+  color: var(--dar-white);
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 1.05rem;
+  letter-spacing: 0.01em;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  transition: background 0.2s, color 0.2s;
+  margin-top: 8px;
+}
+.dar-btn:hover, .ion-button:hover {
+  background: var(--dar-yellow);
+  color: var(--dar-green);
+}
+
+.dar-input, .ion-input, .dar-select, .ion-select {
+  border-radius: 8px;
+  border: 1.5px solid var(--dar-green);
+  background: var(--dar-white);
+  color: var(--dar-dark-green);
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  font-size: 1.08rem;
+  font-family: var(--dar-font);
+  transition: border 0.2s;
+}
+.dar-input:focus, .ion-input:focus, .dar-select:focus, .ion-select:focus {
+  border: 1.5px solid var(--dar-yellow);
+  outline: none;
+}
+
+.dar-label, .ion-label {
+  color: var(--dar-dark-green);
+  font-weight: 500;
+  font-size: 1.08rem;
+  margin-bottom: 4px;
+}
+
+.dar-list, .ion-list {
+  background: var(--dar-white);
+  border-radius: var(--dar-radius);
+  box-shadow: var(--dar-shadow);
+  padding: 0;
+}
+.dar-list-item, .ion-item {
+  border-radius: 8px;
+  margin: 4px 0;
+  background: var(--dar-white);
+  color: var(--dar-dark-green);
+  transition: background 0.2s, color 0.2s;
+  font-size: 1.08rem;
+}
+.dar-list-item:hover, .ion-item:hover {
+  background: var(--dar-yellow);
+  color: var(--dar-green);
+}
+
+.dar-toast, .ion-toast {
+  --background: var(--dar-green);
+  --color: var(--dar-white);
+  border-radius: 8px;
+  font-size: 1.08rem;
+}
+
+.dar-avatar {
+  width: 110px;
+  height: 110px;
+  background: var(--dar-yellow);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 12px auto;
+}
+
+.dar-menu {
+  background: var(--dar-white);
+  border-radius: var(--dar-radius);
+  box-shadow: var(--dar-shadow);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  background: var(--dar-gray);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--dar-green);
+  border-radius: 8px;
+}
