@@ -705,11 +705,24 @@ const Home: React.FC = () => {
 
   // When opening View Land Info or Edit Land Info, fetch info from land_areas by id
   const openViewLandInfo = async (area: any) => {
-    const { data: la, error } = await supabase
+    // First try with all columns including new ones
+    let { data: la, error } = await supabase
       .from('land_areas')
       .select('id, lhid, lo_name, moa, created_at, title_number, survey_number, lot_number, barangay_name, total_area, current_status, current_status_desc, problem_category, sub_category, remarks, exif_data, land_image_url')
       .eq('id', area.id)
       .single();
+    
+    // If that fails, try without the new columns (in case they don't exist yet)
+    if (error && error.code === 'PGRST116') {
+      const fallbackResult = await supabase
+        .from('land_areas')
+        .select('id, lhid, lo_name, moa, created_at, title_number, survey_number, lot_number, barangay_name, total_area, current_status, current_status_desc, problem_category, sub_category, remarks')
+        .eq('id', area.id)
+        .single();
+      la = fallbackResult.data;
+      error = fallbackResult.error;
+    }
+    
     if (la && !error) {
       setSelectedArea(area);
       setViewFields({
@@ -749,6 +762,9 @@ const Home: React.FC = () => {
       });
       setViewEditMode(false);
       setShowViewModal(true);
+    } else {
+      console.error('Failed to fetch land area data:', error);
+      alert('Failed to load land area information. Please try again.');
     }
   };
   const openEditLandInfo = async (area: any) => {
