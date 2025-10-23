@@ -719,8 +719,10 @@ const Home: React.FC = () => {
         .select('id, lhid, lo_name, moa, created_at, title_number, survey_number, lot_number, barangay_name, total_area, current_status, current_status_desc, problem_category, sub_category, remarks')
         .eq('id', area.id)
         .single();
-      la = fallbackResult.data;
-      error = fallbackResult.error;
+      if (fallbackResult.data) {
+        la = { ...fallbackResult.data, exif_data: null, land_image_url: null };
+        error = fallbackResult.error;
+      }
     }
     
     if (la && !error) {
