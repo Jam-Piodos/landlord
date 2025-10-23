@@ -4,8 +4,10 @@ import 'leaflet/dist/leaflet.css';
 import React, { useEffect, useState, useRef } from 'react';
 import L from 'leaflet';
 import { supabase } from '../utils/supabaseClient';
-import { menu as menuIcon, business as castleIcon, add as addIcon, close as closeIcon, checkmark as checkIcon, refresh as refreshIcon, eyeOutline } from 'ionicons/icons';
+import { menu as menuIcon, business as castleIcon, add as addIcon, close as closeIcon, checkmark as checkIcon, refresh as refreshIcon, eyeOutline, camera as cameraIcon } from 'ionicons/icons';
 import { locationOutline } from 'ionicons/icons';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import exifr from 'exifr';
 
 const PIN_IMAGE = '/pin.png';
 const DEFAULT_AVATAR = '/default-avatar.png';
@@ -269,6 +271,9 @@ const Home: React.FC = () => {
   const [viewFields, setViewFields] = useState<any>({});
   const [viewEditMode, setViewEditMode] = useState(false);
   const editingAreaIdRef = useRef<string | null>(null);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [exifData, setExifData] = useState<any>(null);
+  const [showExifModal, setShowExifModal] = useState(false);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -548,11 +553,84 @@ const Home: React.FC = () => {
     setLandAreas(polygons);
   };
 
+  // Camera capture function with EXIF extraction
+  const captureImageWithExif = async () => {
+    try {
+      const image = await Camera.getPhoto({
+        quality: 90,
+        allowEditing: false,
+        resultType: CameraResultType.Uri,
+        source: CameraSource.Camera,
+      });
+
+      if (image.webPath) {
+        setCapturedImage(image.webPath);
+
+        // Fetch the image blob to extract EXIF data
+        const response = await fetch(image.webPath);
+        const blob = await response.blob();
+
+        // Extract EXIF data using exifr
+        const exif = await exifr.parse(blob, true);
+
+        if (exif) {
+          // Format EXIF data for storage and display
+          const formattedExif = {
+            latitude: exif.latitude || null,
+            longitude: exif.longitude || null,
+            altitude: exif.altitude || null,
+            make: exif.Make || null,
+            model: exif.Model || null,
+            dateTime: exif.DateTimeOriginal || exif.DateTime || null,
+            software: exif.Software || null,
+            orientation: exif.Orientation || null,
+            exposureTime: exif.ExposureTime || null,
+            fNumber: exif.FNumber || null,
+            iso: exif.ISO || null,
+            focalLength: exif.FocalLength || null,
+            flash: exif.Flash || null,
+            whiteBalance: exif.WhiteBalance || null,
+            imageWidth: exif.ImageWidth || null,
+            imageHeight: exif.ImageHeight || null,
+          };
+
+          setExifData(formattedExif);
+          setShowExifModal(true);
+        } else {
+          alert('No EXIF data found in this image.');
+        }
+      }
+    } catch (error) {
+      console.error('Error capturing image:', error);
+      alert('Failed to capture image. Please try again.');
+    }
+  };
+
+  // Save EXIF data to land area
+  const saveExifToLandArea = async (areaId: string) => {
+    if (!exifData) return;
+
+    const { error } = await supabase
+      .from('land_areas')
+      .update({ exif_data: exifData })
+      .eq('id', areaId);
+
+    if (error) {
+      console.error('Failed to save EXIF data:', error);
+      alert('Failed to save EXIF data.');
+    } else {
+      setShowExifModal(false);
+      await refreshLandAreas();
+      // Reopen the view modal to show updated data
+      await openViewLandInfo({ id: areaId });
+    }
+  };
+
   // When opening View Land Info or Edit Land Info, fetch info from land_areas by id
   const openViewLandInfo = async (area: any) => {
     const { data: la, error } = await supabase
       .from('land_areas')
-      .select('id, lhid, lo_name, moa, created_at, title_number, survey_number, lot_number, barangay_name, total_area, current_status, current_status_desc, problem_category, sub_category, remarks')
+      .select('id, lhid, lo_name, moa, created_at, title_number, survey_number, lot_number, barangay_name, total_area, current_status, current_status_desc, problem_category, sub_category, remarks, exif_data')
       .eq('id', area.id)
       .single();
     if (la && !error) {
@@ -572,7 +650,8 @@ const Home: React.FC = () => {
         statusDesc: la.current_status_desc || '',
         problemCategory: la.problem_category || '',
         subCategory: la.sub_category || '',
-        remarks: la.remarks || ''
+        remarks: la.remarks || '',
+        exifData: la.exif_data || null
       });
       setEditFields({
         areaId: la.id,
@@ -900,6 +979,31 @@ const Home: React.FC = () => {
                   {viewFields.createdAt && (
                     <div style={{ gridColumn: '1 / span 2', fontSize: 12, color: '#666' }}>Added At: {new Date(viewFields.createdAt).toLocaleString()}</div>
                   )}
+                  {viewFields.exifData && (
+                    <div style={{ gridColumn: '1 / span 2', marginTop: 12, padding: 12, background: '#f5f5f5', borderRadius: 8 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#2E7D32', marginBottom: 8 }}>EXIF Data</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12 }}>
+                        {viewFields.exifData.latitude && (
+                          <div><span style={{ color: '#666' }}>GPS Lat:</span> <span style={{ fontWeight: 600 }}>{viewFields.exifData.latitude.toFixed(6)}</span></div>
+                        )}
+                        {viewFields.exifData.longitude && (
+                          <div><span style={{ color: '#666' }}>GPS Lng:</span> <span style={{ fontWeight: 600 }}>{viewFields.exifData.longitude.toFixed(6)}</span></div>
+                        )}
+                        {viewFields.exifData.altitude && (
+                          <div><span style={{ color: '#666' }}>Altitude:</span> <span style={{ fontWeight: 600 }}>{viewFields.exifData.altitude.toFixed(2)}m</span></div>
+                        )}
+                        {viewFields.exifData.dateTime && (
+                          <div><span style={{ color: '#666' }}>Date:</span> <span style={{ fontWeight: 600 }}>{new Date(viewFields.exifData.dateTime).toLocaleDateString()}</span></div>
+                        )}
+                        {viewFields.exifData.make && (
+                          <div><span style={{ color: '#666' }}>Camera:</span> <span style={{ fontWeight: 600 }}>{viewFields.exifData.make}</span></div>
+                        )}
+                        {viewFields.exifData.model && (
+                          <div><span style={{ color: '#666' }}>Model:</span> <span style={{ fontWeight: 600 }}>{viewFields.exifData.model}</span></div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -919,8 +1023,12 @@ const Home: React.FC = () => {
                 </div>
               )}
               <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <IonButton color="success" onClick={() => { if (viewFields.areaId) { startUpdatePoints({ id: viewFields.areaId, path: [] }); } }}>Update Points</IonButton>
+                  <IonButton color="warning" onClick={captureImageWithExif}>
+                    <IonIcon icon={cameraIcon} slot="start" />
+                    Capture EXIF
+                  </IonButton>
                  {position && (
                     <IonButton color="tertiary" onClick={() => {
                       const area = landAreas.find(a => a.id === (viewFields.areaId || editFields.areaId));
@@ -1098,6 +1206,71 @@ const Home: React.FC = () => {
             <IonButton className="dar-btn" expand="block" color="medium" onClick={() => { setShowDeletePasswordPrompt(false); setDeletePassword(''); setDeleteError(''); setDeleteTarget(null); }}>Cancel</IonButton>
   </div>
 </IonModal>
+        {/* EXIF Data Modal */}
+        <IonModal isOpen={showExifModal} onDidDismiss={() => { setShowExifModal(false); setCapturedImage(null); setExifData(null); }}>
+          <div style={{ padding: 24, maxWidth: 600, margin: '0 auto' }}>
+            <IonText><h2 style={{ color: '#2E7D32', marginBottom: 16 }}>Captured Image with EXIF Data</h2></IonText>
+            {capturedImage && (
+              <div style={{ marginBottom: 16 }}>
+                <img src={capturedImage} alt="Captured" style={{ width: '100%', maxHeight: 300, objectFit: 'contain', borderRadius: 8, border: '2px solid #2E7D32' }} />
+              </div>
+            )}
+            {exifData && (
+              <div style={{ background: '#f5f5f5', padding: 16, borderRadius: 8, marginBottom: 16 }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#2E7D32', marginBottom: 12 }}>EXIF Information</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 14 }}>
+                  {exifData.latitude && (
+                    <div><span style={{ color: '#666' }}>GPS Latitude:</span><br /><span style={{ fontWeight: 600 }}>{exifData.latitude.toFixed(6)}</span></div>
+                  )}
+                  {exifData.longitude && (
+                    <div><span style={{ color: '#666' }}>GPS Longitude:</span><br /><span style={{ fontWeight: 600 }}>{exifData.longitude.toFixed(6)}</span></div>
+                  )}
+                  {exifData.altitude && (
+                    <div><span style={{ color: '#666' }}>Altitude:</span><br /><span style={{ fontWeight: 600 }}>{exifData.altitude.toFixed(2)} meters</span></div>
+                  )}
+                  {exifData.dateTime && (
+                    <div><span style={{ color: '#666' }}>Date/Time:</span><br /><span style={{ fontWeight: 600 }}>{new Date(exifData.dateTime).toLocaleString()}</span></div>
+                  )}
+                  {exifData.make && (
+                    <div><span style={{ color: '#666' }}>Camera Make:</span><br /><span style={{ fontWeight: 600 }}>{exifData.make}</span></div>
+                  )}
+                  {exifData.model && (
+                    <div><span style={{ color: '#666' }}>Camera Model:</span><br /><span style={{ fontWeight: 600 }}>{exifData.model}</span></div>
+                  )}
+                  {exifData.iso && (
+                    <div><span style={{ color: '#666' }}>ISO:</span><br /><span style={{ fontWeight: 600 }}>{exifData.iso}</span></div>
+                  )}
+                  {exifData.focalLength && (
+                    <div><span style={{ color: '#666' }}>Focal Length:</span><br /><span style={{ fontWeight: 600 }}>{exifData.focalLength}mm</span></div>
+                  )}
+                  {exifData.exposureTime && (
+                    <div><span style={{ color: '#666' }}>Exposure:</span><br /><span style={{ fontWeight: 600 }}>{exifData.exposureTime}s</span></div>
+                  )}
+                  {exifData.fNumber && (
+                    <div><span style={{ color: '#666' }}>F-Number:</span><br /><span style={{ fontWeight: 600 }}>f/{exifData.fNumber}</span></div>
+                  )}
+                  {exifData.imageWidth && exifData.imageHeight && (
+                    <div><span style={{ color: '#666' }}>Dimensions:</span><br /><span style={{ fontWeight: 600 }}>{exifData.imageWidth} × {exifData.imageHeight}</span></div>
+                  )}
+                  {exifData.software && (
+                    <div><span style={{ color: '#666' }}>Software:</span><br /><span style={{ fontWeight: 600 }}>{exifData.software}</span></div>
+                  )}
+                </div>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <IonButton className="dar-btn" expand="block" color="success" onClick={() => {
+                const areaId = viewFields.areaId || editFields.areaId || selectedArea?.id;
+                if (areaId) {
+                  saveExifToLandArea(areaId);
+                } else {
+                  alert('No land area selected. Please select a land area first.');
+                }
+              }}>Save to Land Area</IonButton>
+              <IonButton className="dar-btn" expand="block" color="medium" onClick={() => { setShowExifModal(false); setCapturedImage(null); setExifData(null); }}>Cancel</IonButton>
+            </div>
+          </div>
+        </IonModal>
       </IonContent>
     </IonPage>
   );
