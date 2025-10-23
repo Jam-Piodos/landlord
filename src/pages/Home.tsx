@@ -273,7 +273,9 @@ const Home: React.FC = () => {
   const editingAreaIdRef = useRef<string | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [exifData, setExifData] = useState<any>(null);
-  const [showExifModal, setShowExifModal] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [showImageUpdateConfirm, setShowImageUpdateConfirm] = useState(false);
+  const [pendingImageData, setPendingImageData] = useState<{image: string, exif: any} | null>(null);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -553,9 +555,23 @@ const Home: React.FC = () => {
     setLandAreas(polygons);
   };
 
-  // Camera capture function with EXIF extraction
-  const captureImageWithExif = async () => {
+  // Camera capture function with EXIF extraction and image storage
+  const captureLandImage = async () => {
     try {
+      // Check if the current land area already has an image
+      const areaId = viewFields.areaId || editFields.areaId || selectedArea?.id;
+      if (!areaId) {
+        alert('Please select a land area first.');
+        return;
+      }
+
+      // Check for existing image
+      const { data: existingData } = await supabase
+        .from('land_areas')
+        .select('land_image_url, exif_data')
+        .eq('id', areaId)
+        .single();
+
       const image = await Camera.getPhoto({
         quality: 90,
         allowEditing: false,
@@ -573,31 +589,36 @@ const Home: React.FC = () => {
         // Extract EXIF data using exifr
         const exif = await exifr.parse(blob, true);
 
-        if (exif) {
-          // Format EXIF data for storage and display
-          const formattedExif = {
-            latitude: exif.latitude || null,
-            longitude: exif.longitude || null,
-            altitude: exif.altitude || null,
-            make: exif.Make || null,
-            model: exif.Model || null,
-            dateTime: exif.DateTimeOriginal || exif.DateTime || null,
-            software: exif.Software || null,
-            orientation: exif.Orientation || null,
-            exposureTime: exif.ExposureTime || null,
-            fNumber: exif.FNumber || null,
-            iso: exif.ISO || null,
-            focalLength: exif.FocalLength || null,
-            flash: exif.Flash || null,
-            whiteBalance: exif.WhiteBalance || null,
-            imageWidth: exif.ImageWidth || null,
-            imageHeight: exif.ImageHeight || null,
-          };
+        // Format EXIF data for storage and display
+        const formattedExif = {
+          latitude: exif?.latitude || null,
+          longitude: exif?.longitude || null,
+          altitude: exif?.altitude || null,
+          make: exif?.Make || null,
+          model: exif?.Model || null,
+          dateTime: exif?.DateTimeOriginal || exif?.DateTime || null,
+          software: exif?.Software || null,
+          orientation: exif?.Orientation || null,
+          exposureTime: exif?.ExposureTime || null,
+          fNumber: exif?.FNumber || null,
+          iso: exif?.ISO || null,
+          focalLength: exif?.FocalLength || null,
+          flash: exif?.Flash || null,
+          whiteBalance: exif?.WhiteBalance || null,
+          imageWidth: exif?.ImageWidth || null,
+          imageHeight: exif?.ImageHeight || null,
+        };
 
-          setExifData(formattedExif);
-          setShowExifModal(true);
+        setExifData(formattedExif);
+
+        // Check if image already exists
+        if (existingData?.land_image_url) {
+          // Store pending data and ask for confirmation
+          setPendingImageData({ image: image.webPath, exif: formattedExif });
+          setShowImageUpdateConfirm(true);
         } else {
-          alert('No EXIF data found in this image.');
+          // No existing image, proceed directly
+          setShowImageModal(true);
         }
       }
     } catch (error) {
@@ -606,23 +627,79 @@ const Home: React.FC = () => {
     }
   };
 
-  // Save EXIF data to land area
-  const saveExifToLandArea = async (areaId: string) => {
-    if (!exifData) return;
+  // Save image and EXIF data to land area
+  const saveImageToLandArea = async (areaId: string, shouldUpdate: boolean = false) => {
+    if (!capturedImage || !exifData) return;
 
-    const { error } = await supabase
-      .from('land_areas')
-      .update({ exif_data: exifData })
-      .eq('id', areaId);
+    try {
+      // Fetch the image blob
+      const response = await fetch(capturedImage);
+      const blob = await response.blob();
 
-    if (error) {
-      console.error('Failed to save EXIF data:', error);
-      alert('Failed to save EXIF data.');
-    } else {
-      setShowExifModal(false);
+      // Generate unique filename
+      const fileName = `land-${areaId}-${Date.now()}.jpg`;
+      const filePath = `land-images/${fileName}`;
+
+      // If updating, delete old image first
+      if (shouldUpdate) {
+        const { data: existingData } = await supabase
+          .from('land_areas')
+          .select('land_image_url')
+          .eq('id', areaId)
+          .single();
+
+        if (existingData?.land_image_url) {
+          // Extract file path from URL
+          const oldPath = existingData.land_image_url.split('/').slice(-2).join('/');
+          await supabase.storage.from('land-area-images').remove([oldPath]);
+        }
+      }
+
+      // Upload image to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('land-area-images')
+        .upload(filePath, blob, {
+          contentType: 'image/jpeg',
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        alert('Failed to upload image. Please try again.');
+        return;
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('land-area-images')
+        .getPublicUrl(filePath);
+
+      // Update database with image URL and EXIF data
+      const { error: dbError } = await supabase
+        .from('land_areas')
+        .update({ 
+          land_image_url: urlData.publicUrl,
+          exif_data: exifData 
+        })
+        .eq('id', areaId);
+
+      if (dbError) {
+        console.error('Failed to save to database:', dbError);
+        alert('Failed to save image data.');
+        return;
+      }
+
+      setShowImageModal(false);
+      setShowImageUpdateConfirm(false);
+      setPendingImageData(null);
+      setCapturedImage(null);
+      setExifData(null);
       await refreshLandAreas();
       // Reopen the view modal to show updated data
       await openViewLandInfo({ id: areaId });
+    } catch (error) {
+      console.error('Error saving image:', error);
+      alert('Failed to save image. Please try again.');
     }
   };
 
@@ -630,7 +707,7 @@ const Home: React.FC = () => {
   const openViewLandInfo = async (area: any) => {
     const { data: la, error } = await supabase
       .from('land_areas')
-      .select('id, lhid, lo_name, moa, created_at, title_number, survey_number, lot_number, barangay_name, total_area, current_status, current_status_desc, problem_category, sub_category, remarks, exif_data')
+      .select('id, lhid, lo_name, moa, created_at, title_number, survey_number, lot_number, barangay_name, total_area, current_status, current_status_desc, problem_category, sub_category, remarks, exif_data, land_image_url')
       .eq('id', area.id)
       .single();
     if (la && !error) {
@@ -651,7 +728,8 @@ const Home: React.FC = () => {
         problemCategory: la.problem_category || '',
         subCategory: la.sub_category || '',
         remarks: la.remarks || '',
-        exifData: la.exif_data || null
+        exifData: la.exif_data || null,
+        landImageUrl: la.land_image_url || null
       });
       setEditFields({
         areaId: la.id,
@@ -965,7 +1043,28 @@ const Home: React.FC = () => {
             </div>
             <div style={{ padding: 16 }}>
               {!viewEditMode ? (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <>
+                  {/* Land Image Display */}
+                  {viewFields.landImageUrl && (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#2E7D32', marginBottom: 8 }}>Land Image</div>
+                      <img 
+                        src={viewFields.landImageUrl} 
+                        alt="Land" 
+                        style={{ 
+                          width: '100%', 
+                          maxHeight: 300, 
+                          objectFit: 'contain', 
+                          borderRadius: 8, 
+                          border: '2px solid #2E7D32',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => window.open(viewFields.landImageUrl, '_blank')}
+                      />
+                      <div style={{ fontSize: 12, color: '#666', marginTop: 4, textAlign: 'center' }}>Click image to view full size</div>
+                    </div>
+                  )}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div><div style={{ fontSize: 12, color: '#666' }}>LHID</div><div style={{ fontWeight: 600 }}>{viewFields.lhid || '-'}</div></div>
                   <div><div style={{ fontSize: 12, color: '#666' }}>Owner</div><div style={{ fontWeight: 600 }}>{viewFields.ownerName || '-'}</div></div>
                   <div><div style={{ fontSize: 12, color: '#666' }}>MOA</div><div style={{ fontWeight: 600 }}>{viewFields.moa || '-'}</div></div>
@@ -981,7 +1080,7 @@ const Home: React.FC = () => {
                   )}
                   {viewFields.exifData && (
                     <div style={{ gridColumn: '1 / span 2', marginTop: 12, padding: 12, background: '#f5f5f5', borderRadius: 8 }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#2E7D32', marginBottom: 8 }}>EXIF Data</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#2E7D32', marginBottom: 8 }}>Image Metadata</div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12 }}>
                         {viewFields.exifData.latitude && (
                           <div><span style={{ color: '#666' }}>GPS Lat:</span> <span style={{ fontWeight: 600 }}>{viewFields.exifData.latitude.toFixed(6)}</span></div>
@@ -1004,7 +1103,8 @@ const Home: React.FC = () => {
                       </div>
                     </div>
                   )}
-                </div>
+                  </div>
+                </>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <IonInput label="LHID" labelPlacement="stacked" value={editFields.lhid} onIonChange={e => setEditFields((p: any) => ({ ...p, lhid: e.detail.value! }))} />
@@ -1025,9 +1125,9 @@ const Home: React.FC = () => {
               <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <IonButton color="success" onClick={() => { if (viewFields.areaId) { startUpdatePoints({ id: viewFields.areaId, path: [] }); } }}>Update Points</IonButton>
-                  <IonButton color="warning" onClick={captureImageWithExif}>
+                  <IonButton color="warning" onClick={captureLandImage}>
                     <IonIcon icon={cameraIcon} slot="start" />
-                    Capture EXIF
+                    Capture Land Image
                   </IonButton>
                  {position && (
                     <IonButton color="tertiary" onClick={() => {
@@ -1206,10 +1306,10 @@ const Home: React.FC = () => {
             <IonButton className="dar-btn" expand="block" color="medium" onClick={() => { setShowDeletePasswordPrompt(false); setDeletePassword(''); setDeleteError(''); setDeleteTarget(null); }}>Cancel</IonButton>
   </div>
 </IonModal>
-        {/* EXIF Data Modal */}
-        <IonModal isOpen={showExifModal} onDidDismiss={() => { setShowExifModal(false); setCapturedImage(null); setExifData(null); }}>
+        {/* Land Image Modal */}
+        <IonModal isOpen={showImageModal} onDidDismiss={() => { setShowImageModal(false); setCapturedImage(null); setExifData(null); }}>
           <div style={{ padding: 24, maxWidth: 600, margin: '0 auto' }}>
-            <IonText><h2 style={{ color: '#2E7D32', marginBottom: 16 }}>Captured Image with EXIF Data</h2></IonText>
+            <IonText><h2 style={{ color: '#2E7D32', marginBottom: 16 }}>Captured Land Image</h2></IonText>
             {capturedImage && (
               <div style={{ marginBottom: 16 }}>
                 <img src={capturedImage} alt="Captured" style={{ width: '100%', maxHeight: 300, objectFit: 'contain', borderRadius: 8, border: '2px solid #2E7D32' }} />
@@ -1217,7 +1317,7 @@ const Home: React.FC = () => {
             )}
             {exifData && (
               <div style={{ background: '#f5f5f5', padding: 16, borderRadius: 8, marginBottom: 16 }}>
-                <div style={{ fontSize: 16, fontWeight: 700, color: '#2E7D32', marginBottom: 12 }}>EXIF Information</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#2E7D32', marginBottom: 12 }}>Image Metadata</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 14 }}>
                   {exifData.latitude && (
                     <div><span style={{ color: '#666' }}>GPS Latitude:</span><br /><span style={{ fontWeight: 600 }}>{exifData.latitude.toFixed(6)}</span></div>
@@ -1262,12 +1362,35 @@ const Home: React.FC = () => {
               <IonButton className="dar-btn" expand="block" color="success" onClick={() => {
                 const areaId = viewFields.areaId || editFields.areaId || selectedArea?.id;
                 if (areaId) {
-                  saveExifToLandArea(areaId);
+                  saveImageToLandArea(areaId, false);
                 } else {
                   alert('No land area selected. Please select a land area first.');
                 }
-              }}>Save to Land Area</IonButton>
-              <IonButton className="dar-btn" expand="block" color="medium" onClick={() => { setShowExifModal(false); setCapturedImage(null); setExifData(null); }}>Cancel</IonButton>
+              }}>Save Image</IonButton>
+              <IonButton className="dar-btn" expand="block" color="medium" onClick={() => { setShowImageModal(false); setCapturedImage(null); setExifData(null); }}>Cancel</IonButton>
+            </div>
+          </div>
+        </IonModal>
+        {/* Update Image Confirmation Modal */}
+        <IonModal isOpen={showImageUpdateConfirm} onDidDismiss={() => { setShowImageUpdateConfirm(false); setPendingImageData(null); setCapturedImage(null); setExifData(null); }}>
+          <div style={{ padding: 24, textAlign: 'center', maxWidth: 400, margin: '0 auto' }}>
+            <IonText color="warning"><h2>Image Already Exists</h2></IonText>
+            <div style={{ margin: '16px 0', fontSize: 14 }}>
+              This land area already has an image. Do you want to replace it with the new image?
+            </div>
+            {capturedImage && (
+              <div style={{ marginBottom: 16 }}>
+                <img src={capturedImage} alt="New capture" style={{ width: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 8, border: '2px solid #FF9800' }} />
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+              <IonButton className="dar-btn" expand="block" color="warning" onClick={() => {
+                const areaId = viewFields.areaId || editFields.areaId || selectedArea?.id;
+                if (areaId) {
+                  saveImageToLandArea(areaId, true);
+                }
+              }}>Yes, Replace Image</IonButton>
+              <IonButton className="dar-btn" expand="block" color="medium" onClick={() => { setShowImageUpdateConfirm(false); setPendingImageData(null); setCapturedImage(null); setExifData(null); }}>Cancel</IonButton>
             </div>
           </div>
         </IonModal>

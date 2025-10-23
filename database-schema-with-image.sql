@@ -1,9 +1,5 @@
--- Land Areas Table with EXIF Data Support
--- This script updates the land_areas table to include EXIF data storage
--- The exif_data column is already included in the schema below
-
--- Drop existing table if you need to recreate (WARNING: This will delete all data)
--- DROP TABLE IF EXISTS public.land_areas CASCADE;
+-- Land Areas Table with Image Storage and EXIF Data Support
+-- This script updates the land_areas table to include both image URL and EXIF data storage
 
 -- Create or update the land_areas table
 CREATE TABLE IF NOT EXISTS public.land_areas (
@@ -25,7 +21,8 @@ CREATE TABLE IF NOT EXISTS public.land_areas (
   sub_category text NULL,
   remarks text NULL,
   land_status text NULL DEFAULT 'workable'::text,
-  exif_data jsonb NULL,  -- Stores EXIF data from camera captures
+  exif_data jsonb NULL,  -- Stores EXIF metadata (GPS, camera info, etc.)
+  land_image_url text NULL,  -- Stores the public URL of the land image in Supabase Storage
   CONSTRAINT land_areas_pkey PRIMARY KEY (id),
   CONSTRAINT land_areas_user_id_fkey FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE,
   CONSTRAINT land_areas_land_status_check CHECK (
@@ -46,15 +43,20 @@ CREATE INDEX IF NOT EXISTS land_areas_barangay_idx
 CREATE INDEX IF NOT EXISTS land_areas_status_idx 
   ON public.land_areas USING btree (current_status) TABLESPACE pg_default;
 
--- Optional: Create an index on EXIF data for GPS coordinates if you plan to query by location
--- This uses GIN index for JSONB data
+-- Index on EXIF data for GPS coordinates queries
 CREATE INDEX IF NOT EXISTS land_areas_exif_data_idx 
   ON public.land_areas USING gin (exif_data) TABLESPACE pg_default;
 
--- If you need to add the exif_data column to an existing table, use this:
+-- If you need to add columns to an existing table, use these:
 -- ALTER TABLE public.land_areas ADD COLUMN IF NOT EXISTS exif_data jsonb NULL;
+-- ALTER TABLE public.land_areas ADD COLUMN IF NOT EXISTS land_image_url text NULL;
 
--- Example EXIF data structure that will be stored:
+-- Grant permissions (adjust as needed for your setup)
+-- GRANT ALL ON public.land_areas TO authenticated;
+-- GRANT SELECT ON public.land_areas TO anon;
+
+-- Example data structure:
+-- exif_data JSONB:
 -- {
 --   "latitude": 14.599512,
 --   "longitude": 120.984222,
@@ -73,8 +75,7 @@ CREATE INDEX IF NOT EXISTS land_areas_exif_data_idx
 --   "imageWidth": 4000,
 --   "imageHeight": 3000
 -- }
-
--- Grant permissions (adjust as needed for your setup)
--- GRANT ALL ON public.land_areas TO authenticated;
--- GRANT SELECT ON public.land_areas TO anon;
+--
+-- land_image_url TEXT example:
+-- "https://your-project.supabase.co/storage/v1/object/public/land-area-images/land-images/land-abc123-1729695000000.jpg"
 
