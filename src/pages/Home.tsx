@@ -1046,8 +1046,8 @@ const Home: React.FC = () => {
         />
         {/* Modal for area details */}
         <IonModal isOpen={!!selectedArea} onDidDismiss={() => { setSelectedArea(null); setDirections(null); setRouteCoords([]); setRouteInfo(null); setDirectionsPopover(null); }}>
-          <div style={{ padding: 0 }}>
-            <div style={{ padding: 16, background: 'linear-gradient(135deg, #2E7D32 0%, #388E3C 100%)', color: '#FFD700', borderTopLeftRadius: 8, borderTopRightRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ padding: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: 16, background: 'linear-gradient(135deg, #2E7D32 0%, #388E3C 100%)', color: '#FFD700', borderTopLeftRadius: 8, borderTopRightRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
               <div style={{ fontWeight: 700 }}>Land Information</div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 {viewFields.status && (
@@ -1059,7 +1059,7 @@ const Home: React.FC = () => {
                 <IonButton size="small" fill="clear" color="light" onClick={() => setSelectedArea(null)}>Close</IonButton>
               </div>
             </div>
-            <div style={{ padding: 16 }}>
+            <div style={{ padding: 16, overflowY: 'auto', flex: 1 }}>
               {!viewEditMode ? (
                 <>
                   {/* Land Image Display */}
@@ -1071,7 +1071,7 @@ const Home: React.FC = () => {
                         alt="Land" 
                         style={{ 
                           width: '100%', 
-                          maxHeight: 300, 
+                          maxHeight: 200, 
                           objectFit: 'contain', 
                           borderRadius: 8, 
                           border: '2px solid #2E7D32',
