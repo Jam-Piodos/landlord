@@ -29,6 +29,7 @@ import Home from './Home';
 import About from './About';
 import Details from './Details';
 import { supabase } from '../utils/supabaseClient';
+import { logActivity } from '../utils/logger';
 import { useState, useEffect } from 'react';
 import EditProfilePage from './EditProfile';
 
@@ -40,6 +41,7 @@ import EditProfilePage from './EditProfile';
     const [showToast, setShowToast] = useState(false);
     const [tasks, setTasks] = useState<any[]>([]);
     const [landAreas, setLandAreas] = useState<any[]>([]);
+    const [landAreaDetails, setLandAreaDetails] = useState<Record<string, { name: string; status: string }>>({});
     const [currentUserId, setCurrentUserId] = useState<number | null>(null);
     
     const path = [
@@ -77,6 +79,25 @@ import EditProfilePage from './EditProfile';
                     // Count unique land areas
                     const uniqueAreaIds = Array.from(new Set(data.map((r: any) => String(r.land_area_id))));
                     setLandAreas(uniqueAreaIds.map((id: string) => ({ id })) as any);
+
+                        // Fetch land area names and statuses for display
+                        if (uniqueAreaIds.length > 0) {
+                            const { data: laRows, error: laError } = await supabase
+                                .from('land_areas')
+                                .select('id, lo_name, current_status')
+                                .in('id', uniqueAreaIds as any);
+                            if (!laError && laRows) {
+                                const byId: Record<string, { name: string; status: string }> = {};
+                                laRows.forEach((row: any) => {
+                                    const isDone = String(row.current_status || '').toLowerCase() === 'done';
+                                    byId[String(row.id)] = {
+                                        name: row.lo_name || `Land Area ${row.id}`,
+                                        status: isDone ? 'Done' : 'Pending'
+                                    };
+                                });
+                                setLandAreaDetails(byId);
+                            }
+                        }
                 }
                 setCurrentUserId(userId);
             }
@@ -86,13 +107,17 @@ import EditProfilePage from './EditProfile';
     }, []);
 
     const handleLogout = async () => {
+        const { data: authData } = await supabase.auth.getUser();
+        const email = authData?.user?.email || undefined;
         const { error } = await supabase.auth.signOut();
         if (!error) {
+            await logActivity('logout', { status: 'succeeded', userName: email });
             setShowToast(true);
             setTimeout(() => {
                 navigation.push('/landlord', 'back', 'replace'); 
             }, 300); 
         } else {
+            await logActivity('logout', { status: 'failed', userName: email });
             setErrorMessage(error.message);
             setShowAlert(true);
         }
@@ -136,21 +161,22 @@ import EditProfilePage from './EditProfile';
                                                     border: '1px solid rgba(46, 125, 50, 0.3)',
                                                     cursor: 'pointer'
                                                 }}
-                                                onClick={() => {
-                                                    // Navigate to home page with task context
-                                                    navigation.push('/landlord/app/home', 'forward', 'replace');
-                                                    // Store the selected task in localStorage for Home component to access
+                                                onClick={async () => {
+                                                    // Store the selected task context for Home
                                                     localStorage.setItem('selectedTask', JSON.stringify(task));
+                                                    await logActivity('open_task');
+                                                    // Navigate to home page
+                                                    navigation.push('/landlord/app/home', 'forward', 'replace');
                                                 }}
                                             >
                                                 <IonCardHeader style={{ padding: '12px 16px' }}>
                                                     <IonText style={{ fontSize: '0.9rem', fontWeight: 600, color: '#2E7D32' }}>
-                                                        Task #{task.id}
+                                                        {landAreaDetails[String(task.land_area_id)]?.name || `Land Area ${task.land_area_id}`}
                                                     </IonText>
                                                 </IonCardHeader>
                                                 <IonCardContent style={{ padding: '0 16px 12px' }}>
                                                     <IonText style={{ fontSize: '0.8rem', color: '#2E7D32' }}>
-                                                        Land Area: {task.land_area_id}
+                                                        Status: {landAreaDetails[String(task.land_area_id)]?.status || 'Pending'}
                                                     </IonText>
                                                     <div style={{ marginTop: 4, fontSize: '0.8rem', color: '#388E3C', fontStyle: 'italic' }}>
                                                         Click to start surveying

@@ -15,6 +15,7 @@ import {
   import { useState, useEffect, useRef } from 'react';
   import { supabase } from '../utils/supabaseClient';
   import L from 'leaflet';
+  import { logActivity } from '../utils/logger';
   
   const AlertBox: React.FC<{ message: string; isOpen: boolean; onClose: () => void }> = ({ message, isOpen, onClose }) => {
     return (
@@ -64,6 +65,7 @@ import {
     if (error) {
       setAlertMessage(error.message);
       setShowAlert(true);
+      await logActivity('login', { status: 'failed', userName: email });
       return;
     }
 
@@ -77,6 +79,7 @@ import {
     if (userError) {
       setAlertMessage('Error checking user status. Please try again.');
       setShowAlert(true);
+      await logActivity('login', { status: 'failed', userName: email });
       return;
     }
 
@@ -85,9 +88,11 @@ import {
       setShowAlert(true);
       // Sign out the user since they shouldn't be logged in
       await supabase.auth.signOut();
+      await logActivity('login', { status: 'failed', userName: email });
       return;
     }
 
+    await logActivity('login', { status: 'succeeded', userName: email });
     setShowToast(true); 
     setTimeout(() => {
       navigation.push('/landlord/app', 'forward', 'replace');

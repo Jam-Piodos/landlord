@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import React, { useEffect, useState, useRef } from 'react';
 import L from 'leaflet';
 import { supabase } from '../utils/supabaseClient';
+import { logActivity } from '../utils/logger';
 import { menu as menuIcon, business as castleIcon, add as addIcon, close as closeIcon, checkmark as checkIcon, refresh as refreshIcon, eyeOutline, camera as cameraIcon } from 'ionicons/icons';
 import { locationOutline } from 'ionicons/icons';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
@@ -355,10 +356,12 @@ const Home: React.FC = () => {
           console.error(error);
           setLandAreas([]);
           setTasks([]);
+          await logActivity('load_assignments', { status: 'failed' });
           return;
         }
 
         setTasks(data || []);
+        await logActivity('load_assignments', { status: 'succeeded' });
 
         const polygons = (data || [])
           .map(r => ({ id: r.land_area_id, path: normalizePathToLatLngArray(r.path) }))
@@ -376,9 +379,50 @@ const Home: React.FC = () => {
     return () => {};
   }, []);
 
+  // When navigated from the menu card, center map to the selected parcel
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('selectedTask');
+      if (!raw || !landAreas || landAreas.length === 0) return;
+      const task = JSON.parse(raw);
+      const areaId = task?.land_area_id;
+      if (!areaId) return;
+      const area = landAreas.find(a => String(a.id) === String(areaId));
+      if (area && Array.isArray(area.path) && area.path.length > 2) {
+        // Log navigation-to-area activity
+        (async () => {
+          try {
+            const { data: authData } = await supabase.auth.getUser();
+            const email = authData?.user?.email;
+            let userId: number | null = null;
+            if (email) {
+              const { data: userRow } = await supabase
+                .from('users')
+                .select('user_id')
+                .eq('user_email', email)
+                .single();
+              userId = userRow?.user_id ?? null;
+            }
+            await supabase.from('activity_logs').insert({
+              user_id: userId,
+              action: 'center_to_parcel',
+              entity_type: 'land_area',
+              entity_id: String(areaId),
+              details: { trigger: 'card_click' }
+            } as any);
+          } catch {}
+        })();
+        setSelectedArea(area);
+        // Clear after using so it doesn't keep re-centering
+        localStorage.removeItem('selectedTask');
+      }
+    } catch {}
+  }, [landAreas]);
+
   // Lightweight mapping functions for updating an area's points
   const startUpdatePoints = (area: any) => {
     if (!area) return;
+    logActivity('start_mapping');
     // Remember which area to return to
     editingAreaIdRef.current = area.id;
     setSelectedArea(null);
@@ -404,6 +448,7 @@ const Home: React.FC = () => {
     if (!position) return;
     setPath((prev) => [...prev, position]);
     setWalkedPath([position]);
+    logActivity('mark_point');
   };
 
   const finishMapping = async () => {
@@ -415,7 +460,9 @@ const Home: React.FC = () => {
     const { error } = await supabase.from('land_areas').update({ path: closed }).eq('id', areaId);
     if (error) {
       console.error('Failed to update land area path', error);
+      await logActivity('save_mapping', { status: 'failed' });
     } else {
+      await logActivity('save_mapping', { status: 'succeeded' });
       await refreshLandAreas();
       // Reopen the view modal for the edited area
       try {
@@ -437,11 +484,13 @@ const Home: React.FC = () => {
       watchId.current = null;
     }
     setWalkedPath([]);
+    logActivity('cancel_mapping');
   };
 
   const resetMapping = () => {
     setPath([]);
     setWalkedPath([]);
+    logActivity('reset_mapping');
   };
 
   // Zoom to area
@@ -486,6 +535,7 @@ const Home: React.FC = () => {
     const centroid = getPolygonCentroid(selectedArea.path);
     setDirectionsPopover({ open: true, event: e.nativeEvent });
     fetchRoute(position, centroid);
+    logActivity('get_directions');
   };
 
   // Fetch route from OSRM API
@@ -497,15 +547,18 @@ const Home: React.FC = () => {
       const coords = data.routes[0].geometry.coordinates.map(([lng, lat]: [number, number]) => [lat, lng]);
       setRouteCoords(coords);
       setRouteInfo({ distance: data.routes[0].distance, duration: data.routes[0].duration });
+      await logActivity('fetch_route', { status: 'succeeded' });
     } else {
       setRouteCoords([]);
       setRouteInfo(null);
+      await logActivity('fetch_route', { status: 'failed' });
     }
   }
 
   function openGoogleMapsDirections(from: [number, number], to: [number, number]) {
     const url = `https://www.google.com/maps/dir/?api=1&origin=${from[0]},${from[1]}&destination=${to[0]},${to[1]}&travelmode=driving`;
     window.open(url, '_blank');
+    logActivity('open_google_maps');
   }
 
   // Mapping controls (only visible during mapping)
@@ -558,6 +611,7 @@ const Home: React.FC = () => {
   // Camera capture function with EXIF extraction and image storage
   const captureLandImage = async () => {
     try {
+      await logActivity('capture_image');
       // Check if the current land area already has an image
       const areaId = viewFields.areaId || editFields.areaId || selectedArea?.id;
       if (!areaId) {
@@ -610,6 +664,7 @@ const Home: React.FC = () => {
         };
 
         setExifData(formattedExif);
+        await logActivity('extract_exif', { status: 'succeeded' });
 
         // Check if image already exists
         if (existingData?.land_image_url) {
@@ -624,6 +679,7 @@ const Home: React.FC = () => {
     } catch (error) {
       console.error('Error capturing image:', error);
       alert('Failed to capture image. Please try again.');
+      await logActivity('capture_image', { status: 'failed' });
     }
   };
 
@@ -666,8 +722,10 @@ const Home: React.FC = () => {
       if (uploadError) {
         console.error('Upload error:', uploadError);
         alert('Failed to upload image. Please try again.');
+        await logActivity('upload_image', { status: 'failed' });
         return;
       }
+      await logActivity('upload_image', { status: 'succeeded' });
 
       // Get public URL
       const { data: urlData } = supabase.storage
@@ -686,8 +744,10 @@ const Home: React.FC = () => {
       if (dbError) {
         console.error('Failed to save to database:', dbError);
         alert('Failed to save image data.');
+        await logActivity('save_image_record', { status: 'failed' });
         return;
       }
+      await logActivity('save_image_record', { status: 'succeeded' });
 
       setShowImageModal(false);
       setShowImageUpdateConfirm(false);
@@ -700,6 +760,7 @@ const Home: React.FC = () => {
     } catch (error) {
       console.error('Error saving image:', error);
       alert('Failed to save image. Please try again.');
+      await logActivity('save_image', { status: 'failed' });
     }
   };
 
