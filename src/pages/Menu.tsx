@@ -165,6 +165,11 @@ import EditProfilePage from './EditProfile';
                                                     // Store the selected task context for Home
                                                     localStorage.setItem('selectedTask', JSON.stringify(task));
                                                     await logActivity('open_task');
+                                                    // Close the side menu before navigating
+                                                    const menuEl = document.querySelector('ion-menu') as any;
+                                                    if (menuEl && typeof menuEl.close === 'function') {
+                                                        try { await menuEl.close(); } catch {}
+                                                    }
                                                     // Navigate to home page
                                                     navigation.push('/landlord/app/home', 'forward', 'replace');
                                                 }}
@@ -174,7 +179,15 @@ import EditProfilePage from './EditProfile';
                                                         {landAreaDetails[String(task.land_area_id)]?.name || `Land Area ${task.land_area_id}`}
                                                     </IonText>
                                                 </IonCardHeader>
-                                                <IonCardContent style={{ padding: '0 16px 12px' }}>
+                                                <IonCardContent style={{ padding: '0 16px 12px' }} onClick={async () => {
+                                                    localStorage.setItem('selectedTask', JSON.stringify(task));
+                                                    await logActivity('open_task');
+                                                    const menuEl = document.querySelector('ion-menu') as any;
+                                                    if (menuEl && typeof menuEl.close === 'function') {
+                                                        try { await menuEl.close(); } catch {}
+                                                    }
+                                                    navigation.push('/landlord/app/home', 'forward', 'replace');
+                                                }}>
                                                     <IonText style={{ fontSize: '0.8rem', color: '#2E7D32' }}>
                                                         Status: {landAreaDetails[String(task.land_area_id)]?.status || 'Pending'}
                                                     </IonText>
