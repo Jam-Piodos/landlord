@@ -65,7 +65,7 @@ import {
     if (error) {
       setAlertMessage(error.message);
       setShowAlert(true);
-      await logActivity('login', { status: 'failed', userName: email });
+      await logActivity('login', { status: 'failed' });
       return;
     }
 
@@ -79,7 +79,7 @@ import {
     if (userError) {
       setAlertMessage('Error checking user status. Please try again.');
       setShowAlert(true);
-      await logActivity('login', { status: 'failed', userName: email });
+      await logActivity('login', { status: 'failed' });
       return;
     }
 
@@ -88,11 +88,11 @@ import {
       setShowAlert(true);
       // Sign out the user since they shouldn't be logged in
       await supabase.auth.signOut();
-      await logActivity('login', { status: 'failed', userName: email });
+      await logActivity('login', { status: 'failed' });
       return;
     }
 
-    await logActivity('login', { status: 'succeeded', userName: email });
+    await logActivity('login', { status: 'succeeded' });
     setShowToast(true); 
     setTimeout(() => {
       navigation.push('/landlord/app', 'forward', 'replace');

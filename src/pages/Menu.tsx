@@ -107,17 +107,15 @@ import EditProfilePage from './EditProfile';
     }, []);
 
     const handleLogout = async () => {
-        const { data: authData } = await supabase.auth.getUser();
-        const email = authData?.user?.email || undefined;
         const { error } = await supabase.auth.signOut();
         if (!error) {
-            await logActivity('logout', { status: 'succeeded', userName: email });
+            await logActivity('logout', { status: 'succeeded' });
             setShowToast(true);
             setTimeout(() => {
                 navigation.push('/landlord', 'back', 'replace'); 
             }, 300); 
         } else {
-            await logActivity('logout', { status: 'failed', userName: email });
+            await logActivity('logout', { status: 'failed' });
             setErrorMessage(error.message);
             setShowAlert(true);
         }

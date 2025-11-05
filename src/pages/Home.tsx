@@ -915,6 +915,31 @@ const Home: React.FC = () => {
     return () => document.removeEventListener('visibilitychange', onVis);
   }, []);
 
+  // Close any open land info/modal when the side menu is opening (covers swipe gestures)
+  React.useEffect(() => {
+    const handler = () => {
+      try {
+        setSelectedArea(null);
+        setShowViewModal(false);
+        setDirections(null);
+        setRouteCoords([]);
+        setRouteInfo(null);
+        setDirectionsPopover(null);
+      } catch {}
+    };
+    const menus = Array.from(document.querySelectorAll('ion-menu')) as any[];
+    menus.forEach((m) => {
+      try {
+        m.addEventListener('ionWillOpen', handler);
+      } catch {}
+    });
+    return () => {
+      menus.forEach((m) => {
+        try { m.removeEventListener('ionWillOpen', handler); } catch {}
+      });
+    };
+  }, []);
+
   // Supabase Realtime: subscribe to tasks and land_areas changes, only when no modal/popover is open
   React.useEffect(() => {
     if (!ENABLE_REALTIME) return;
@@ -964,7 +989,21 @@ const Home: React.FC = () => {
       <IonContent fullscreen style={{ padding: 0 }}>
         {/* Floating Burger Menu */}
         <IonFab vertical="top" horizontal="end" slot="fixed" style={{ zIndex: 1000, marginTop: '1rem', marginRight: '1rem' }}>
-          <IonFabButton color="success" onClick={() => document.querySelector('ion-menu')?.open()} style={{ background: 'linear-gradient(135deg, #2E7D32 0%, #388E3C 100%)' }}> 
+          <IonFabButton color="success" onClick={async () => {
+            // Close any open modals/popovers before opening the menu to avoid stray UI
+            try {
+              setSelectedArea(null);
+              setShowViewModal(false);
+              setDirections(null);
+              setRouteCoords([]);
+              setRouteInfo(null);
+              setDirectionsPopover(null);
+            } catch {}
+            const menu = document.querySelector('ion-menu') as any;
+            if (menu && typeof menu.open === 'function') {
+              try { await menu.open(); } catch {}
+            }
+          }} style={{ background: 'linear-gradient(135deg, #2E7D32 0%, #388E3C 100%)' }}> 
             <IonIcon icon={menuIcon} style={{ color: '#FFD700' }} />
           </IonFabButton>
         </IonFab>
@@ -1106,7 +1145,7 @@ const Home: React.FC = () => {
           color={'success'}
         />
         {/* Modal for area details */}
-        <IonModal isOpen={!!selectedArea} onDidDismiss={() => { setSelectedArea(null); setDirections(null); setRouteCoords([]); setRouteInfo(null); setDirectionsPopover(null); }}>
+        <IonModal isOpen={showViewModal} onDidDismiss={() => { setShowViewModal(false); setSelectedArea(null); setDirections(null); setRouteCoords([]); setRouteInfo(null); setDirectionsPopover(null); }}>
           <div style={{ padding: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: 16, background: 'linear-gradient(135deg, #2E7D32 0%, #388E3C 100%)', color: '#FFD700', borderTopLeftRadius: 8, borderTopRightRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
               <div style={{ fontWeight: 700 }}>Land Information</div>
