@@ -10,7 +10,7 @@ export default defineConfig({
     react(),
     legacy()
   ],
-  base: "/",
+  base: "/landlord",
   test: {
     globals: true,
     environment: 'jsdom',
