@@ -1,33 +1,33 @@
-import {
-  IonButtons,
-  IonContent,
-  IonHeader,
+import { 
+    IonButtons,
+      IonContent, 
+      IonHeader, 
   IonIcon,
-  IonMenuButton,
-  IonPage,
+      IonMenuButton, 
+      IonPage, 
   IonText,
-  IonTitle,
-  IonToolbar,
+      IonTitle, 
+      IonToolbar, 
   IonCard,
   IonCardHeader,
   IonCardContent
-} from '@ionic/react';
+  } from '@ionic/react';
 import { informationCircleOutline, mapOutline, lockClosedOutline } from 'ionicons/icons';
 import { useEffect } from 'react';
 import { logActivity } from '../utils/logger';
-
-const About: React.FC = () => {
+  
+  const About: React.FC = () => {
   useEffect(() => { logActivity('view_about'); }, []);
-  return (
-    <IonPage>
-      <IonHeader>
-        <IonToolbar>
+    return (
+      <IonPage>
+        <IonHeader>
+          <IonToolbar>
           <IonButtons slot='start'>
             <IonMenuButton></IonMenuButton>
-          </IonButtons>
-          <IonTitle>About</IonTitle>
-        </IonToolbar>
-      </IonHeader>
+            </IonButtons>
+            <IonTitle>About</IonTitle>
+          </IonToolbar>
+        </IonHeader>
       <IonContent fullscreen style={{
         '--background': 'linear-gradient(135deg, #f7faf7 0%, #eef7f0 100%)'
       }}>
@@ -79,9 +79,9 @@ const About: React.FC = () => {
             </IonCardContent>
           </IonCard>
         </div>
-      </IonContent>
-    </IonPage>
-  );
-};
-
-export default About;
+        </IonContent>
+      </IonPage>
+    );
+  };
+  
+  export default About;

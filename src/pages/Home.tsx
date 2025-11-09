@@ -940,22 +940,33 @@ const Home: React.FC = () => {
     };
   }, []);
 
-  // Supabase Realtime: subscribe to tasks and land_areas changes, only when no modal/popover is open
+  // Supabase Realtime: subscribe to tasks and land_areas changes for real-time updates
   React.useEffect(() => {
-    if (!ENABLE_REALTIME) return;
-    const isAnyModalOpen = showOwnerModal || showEditModal || showViewModal || showPasswordPrompt || showDeleteConfirm || showDeletePasswordPrompt || (areaPopover && areaPopover.open);
-    if (isAnyModalOpen) return;
+    if (!ENABLE_REALTIME || !currentUserId) return;
     
+    // Subscribe to tasks table changes (INSERT, UPDATE, DELETE)
     const tasksChannel = supabase
-      .channel('realtime:tasks')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
+      .channel('realtime:tasks:home')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'tasks',
+        filter: `assigned_to=eq.${currentUserId}`
+      }, (payload) => {
+        console.log('Realtime task change:', payload);
         refreshLandAreas();
       })
       .subscribe();
       
+    // Subscribe to land_areas table changes
     const landAreasChannel = supabase
-      .channel('realtime:land_areas')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'land_areas' }, () => {
+      .channel('realtime:land_areas:home')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'land_areas'
+      }, (payload) => {
+        console.log('Realtime land area change:', payload);
         refreshLandAreas();
       })
       .subscribe();
@@ -964,7 +975,7 @@ const Home: React.FC = () => {
       supabase.removeChannel(tasksChannel);
       supabase.removeChannel(landAreasChannel);
     };
-  }, [showOwnerModal, showEditModal, showViewModal, showPasswordPrompt, showDeleteConfirm, showDeletePasswordPrompt, areaPopover]);
+  }, [currentUserId]);
 
   return (
     <IonPage>
@@ -1156,7 +1167,7 @@ const Home: React.FC = () => {
                 {viewFields.problemCategory && (
                   <span style={{ background: '#33691e', color: '#FFD700', padding: '4px 8px', borderRadius: 12, fontSize: 12 }}>{viewFields.problemCategory}</span>
                 )}
-                <IonButton size="small" fill="clear" color="light" onClick={() => setSelectedArea(null)}>Close</IonButton>
+                <IonButton size="small" fill="clear" color="light" onClick={() => { setShowViewModal(false); setSelectedArea(null); setDirections(null); setRouteCoords([]); setRouteInfo(null); setDirectionsPopover(null); }}>Close</IonButton>
               </div>
             </div>
             <div style={{ padding: 16, overflowY: 'auto', flex: 1 }}>
@@ -1286,17 +1297,24 @@ const Home: React.FC = () => {
                  <IonButton color="danger" onClick={async () => {
                    const areaId = viewFields.areaId || editFields.areaId;
                    if (!areaId || !currentUserId) return;
-                   // Mark task done by removing it from tasks for this user and land area
+                   // Mark task done by updating status in tasks table
                    const { error } = await supabase
                      .from('tasks')
                      .update({ status: 'done', updated_at: new Date().toISOString() })
                      .match({ assigned_to: currentUserId, land_area_id: areaId });
 
                    if (!error) {
+                     await logActivity('task_done', { status: 'succeeded' });
                      await refreshLandAreas();
+                     setShowViewModal(false);
                      setSelectedArea(null);
+                     setDirections(null);
+                     setRouteCoords([]);
+                     setRouteInfo(null);
+                     setDirectionsPopover(null);
                    } else {
                      console.error('Mark done failed:', error);
+                     await logActivity('task_done', { status: 'failed' });
                    }
                  }}>Task Done</IonButton>
                 </div>

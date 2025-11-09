@@ -1,9 +1,7 @@
 import { 
     IonAlert,
-    IonAvatar,
     IonButton,
     IonContent, 
-    IonIcon, 
     IonInput, 
     IonInputPasswordToggle,  
     IonPage,  
@@ -11,11 +9,10 @@ import {
     useIonRouter,
     IonText
   } from '@ionic/react';
-  import { logoIonic } from 'ionicons/icons';
   import { useState, useEffect, useRef } from 'react';
   import { supabase } from '../utils/supabaseClient';
-  import L from 'leaflet';
   import { logActivity } from '../utils/logger';
+  import darLogo from '../dar.png';
   
   const AlertBox: React.FC<{ message: string; isOpen: boolean; onClose: () => void }> = ({ message, isOpen, onClose }) => {
     return (
@@ -116,9 +113,9 @@ import {
             width: '100%',
             border: '1px solid var(--dar-green)'
           }}>
-            <IonAvatar style={{ width: '110px', height: '110px', margin: '0 auto 12px auto', background: 'var(--dar-yellow)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <IonIcon icon={logoIonic} style={{ fontSize: '80px', color: 'var(--dar-green)' }} />
-            </IonAvatar>
+              <div style={{ width: '110px', height: '110px', margin: '0 auto 12px auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <img src={darLogo} alt="DAR Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              </div>
             <IonText className="dar-title" style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: 12 }}>USER LOGIN</IonText>
             <IonInput className="dar-input" label="Email" labelPlacement="floating" fill="outline" type="email" placeholder="Enter Email" value={email} onIonChange={e => setEmail(e.detail.value!)} />
             <IonInput className="dar-input" style={{ marginTop:'10px' }} fill="outline" type="password" placeholder="Password" value={password} onIonChange={e => setPassword(e.detail.value!)} >

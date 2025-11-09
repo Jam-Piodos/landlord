@@ -51,60 +51,97 @@ import EditProfilePage from './EditProfile';
     ]
 
     // Fetch tasks and land areas for the current user
-    useEffect(() => {
-        const fetchAssignments = async () => {
-            const { data: authData } = await supabase.auth.getUser();
-            const userEmail = authData?.user?.email;
-            let userId: number | null = null;
-            
-            if (userEmail) {
-                const { data: userRow, error: userError } = await supabase
-                    .from('users')
-                    .select('user_id')
-                    .eq('user_email', userEmail)
-                    .single();
-                if (!userError && userRow?.user_id) {
-                    userId = userRow.user_id;
-                }
-            }
-            
-            if (userId) {
-                // Use the assigned_polygons view so counts match the map
-                const { data, error } = await supabase
-                    .from('assigned_polygons')
-                    .select('task_id, assigned_to, land_area_id, path')
-                    .eq('assigned_to', userId);
-                if (!error && data) {
-                    setTasks(data);
-                    // Count unique land areas
-                    const uniqueAreaIds = Array.from(new Set(data.map((r: any) => String(r.land_area_id))));
-                    setLandAreas(uniqueAreaIds.map((id: string) => ({ id })) as any);
-
-                        // Fetch land area names and statuses for display
-                        if (uniqueAreaIds.length > 0) {
-                            const { data: laRows, error: laError } = await supabase
-                                .from('land_areas')
-                                .select('id, lo_name, current_status')
-                                .in('id', uniqueAreaIds as any);
-                            if (!laError && laRows) {
-                                const byId: Record<string, { name: string; status: string }> = {};
-                                laRows.forEach((row: any) => {
-                                    const isDone = String(row.current_status || '').toLowerCase() === 'done';
-                                    byId[String(row.id)] = {
-                                        name: row.lo_name || `Land Area ${row.id}`,
-                                        status: isDone ? 'Done' : 'Pending'
-                                    };
-                                });
-                                setLandAreaDetails(byId);
-                            }
-                        }
-                }
-                setCurrentUserId(userId);
-            }
-        };
+    const fetchAssignments = async () => {
+        const { data: authData } = await supabase.auth.getUser();
+        const userEmail = authData?.user?.email;
+        let userId: number | null = null;
         
+        if (userEmail) {
+            const { data: userRow, error: userError } = await supabase
+                .from('users')
+                .select('user_id')
+                .eq('user_email', userEmail)
+                .single();
+            if (!userError && userRow?.user_id) {
+                userId = userRow.user_id;
+            }
+        }
+        
+        if (userId) {
+            // Use the assigned_polygons view so counts match the map
+            const { data, error } = await supabase
+                .from('assigned_polygons')
+                .select('task_id, assigned_to, land_area_id, path')
+                .eq('assigned_to', userId);
+            if (!error && data) {
+                setTasks(data);
+                // Count unique land areas
+                const uniqueAreaIds = Array.from(new Set(data.map((r: any) => String(r.land_area_id))));
+                setLandAreas(uniqueAreaIds.map((id: string) => ({ id })) as any);
+
+                    // Fetch land area names and statuses for display
+                    if (uniqueAreaIds.length > 0) {
+                        const { data: laRows, error: laError } = await supabase
+                            .from('land_areas')
+                            .select('id, lo_name, current_status')
+                            .in('id', uniqueAreaIds as any);
+                        if (!laError && laRows) {
+                            const byId: Record<string, { name: string; status: string }> = {};
+                            laRows.forEach((row: any) => {
+                                const isDone = String(row.current_status || '').toLowerCase() === 'done';
+                                byId[String(row.id)] = {
+                                    name: row.lo_name || `Land Area ${row.id}`,
+                                    status: isDone ? 'Done' : 'Pending'
+                                };
+                            });
+                            setLandAreaDetails(byId);
+                        }
+                    }
+            }
+            setCurrentUserId(userId);
+        }
+    };
+
+    useEffect(() => {
         fetchAssignments();
     }, []);
+
+    // Realtime subscriptions for tasks and land areas
+    useEffect(() => {
+        if (!currentUserId) return;
+
+        // Subscribe to tasks table changes for this user
+        const tasksChannel = supabase
+            .channel('realtime:tasks:menu')
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'tasks',
+                filter: `assigned_to=eq.${currentUserId}`
+            }, (payload) => {
+                console.log('Realtime task change in menu:', payload);
+                fetchAssignments();
+            })
+            .subscribe();
+
+        // Subscribe to land_areas table changes
+        const landAreasChannel = supabase
+            .channel('realtime:land_areas:menu')
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'land_areas'
+            }, (payload) => {
+                console.log('Realtime land area change in menu:', payload);
+                fetchAssignments();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(tasksChannel);
+            supabase.removeChannel(landAreasChannel);
+        };
+    }, [currentUserId]);
 
     const handleLogout = async () => {
         const { error } = await supabase.auth.signOut();
