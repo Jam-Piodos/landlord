@@ -7,6 +7,7 @@ import {
 import { supabase } from '../utils/supabaseClient';
 import { useHistory } from 'react-router-dom';
 import L from 'leaflet';
+import defaultAvatar from '../default-avatar.png';
 
 const EditAccount: React.FC = () => {
     const [email, setEmail] = useState('');
@@ -179,7 +180,7 @@ const EditAccount: React.FC = () => {
           </IonItem>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'var(--dar-gray)', borderRadius: 18, boxShadow: '0 4px 24px rgba(0,0,0,0.08)', padding: 32, maxWidth: 420, margin: '0 auto' }}>
             <IonAvatar style={{ width: '140px', height: '140px', margin: '0 auto 12px auto', background: 'var(--dar-yellow)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <IonImg src={avatarPreview || '/default-avatar.png'} />
+              <IonImg src={avatarPreview || defaultAvatar} />
             </IonAvatar>
             <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleAvatarChange} />
             <IonButton className="dar-btn" expand="block" onClick={() => fileInputRef.current?.click()} style={{ marginBottom: 18 }}>Upload Avatar</IonButton>

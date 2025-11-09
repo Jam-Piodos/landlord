@@ -9,9 +9,10 @@ import { menu as menuIcon, business as castleIcon, add as addIcon, close as clos
 import { locationOutline } from 'ionicons/icons';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import exifr from 'exifr';
+import defaultAvatar from '../default-avatar.png';
 
 const PIN_IMAGE = '/pin.png';
-const DEFAULT_AVATAR = '/default-avatar.png';
+const DEFAULT_AVATAR = defaultAvatar;
 
 const DISTANCE_THRESHOLD = 1.5; // meters (less sensitive for small areas)
 const MIN_AREA_POINTS = 4; // Minimum for a valid polygon (quadrilateral)
@@ -426,6 +427,12 @@ const Home: React.FC = () => {
     // Remember which area to return to
     editingAreaIdRef.current = area.id;
     setSelectedArea(null);
+    // Close the modal
+    setShowViewModal(false);
+    setDirections(null);
+    setRouteCoords([]);
+    setRouteInfo(null);
+    setDirectionsPopover(null);
     // Start from zero points per request
     setPath([]);
     setWalkedPath([]);

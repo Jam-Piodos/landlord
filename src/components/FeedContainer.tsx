@@ -3,6 +3,7 @@ import { IonApp, IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButton
 import { User } from '@supabase/supabase-js';
 import { supabase } from '../utils/supabaseClient';
 import { colorFill, pencil, trash } from 'ionicons/icons';
+import defaultAvatar from '../default-avatar.png';
 
 interface Post {
   post_id: string;
@@ -63,7 +64,7 @@ const FeedContainer = () => {
       return;
     }
   
-    const avatarUrl = userData?.user_avatar_url || '/default-avatar.png';
+    const avatarUrl = userData?.user_avatar_url || defaultAvatar;
   
     // Insert post with avatar URL
     const { data, error } = await supabase
