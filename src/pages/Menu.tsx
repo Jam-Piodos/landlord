@@ -83,15 +83,15 @@ import EditProfilePage from './EditProfile';
                     if (uniqueAreaIds.length > 0) {
                         const { data: laRows, error: laError } = await supabase
                             .from('land_areas')
-                            .select('id, lo_name, current_status')
+                            .select('id, lo_name, land_status')
                             .in('id', uniqueAreaIds as any);
                         if (!laError && laRows) {
                             const byId: Record<string, { name: string; status: string }> = {};
                             laRows.forEach((row: any) => {
-                                const isDone = String(row.current_status || '').toLowerCase() === 'done';
+                                const landStatus = String(row.land_status || 'workable').toLowerCase();
                                 byId[String(row.id)] = {
                                     name: row.lo_name || `Land Area ${row.id}`,
-                                    status: isDone ? 'Done' : 'Pending'
+                                    status: landStatus === 'problematic' ? 'Problematic' : 'Workable'
                                 };
                             });
                             setLandAreaDetails(byId);

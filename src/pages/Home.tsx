@@ -776,7 +776,7 @@ const Home: React.FC = () => {
     // First try with all columns including new ones
     let { data: la, error } = await supabase
       .from('land_areas')
-      .select('id, lhid, lo_name, moa, created_at, title_number, survey_number, lot_number, barangay_name, total_area, current_status, current_status_desc, problem_category, sub_category, remarks, exif_data, land_image_url')
+      .select('id, lhid, lo_name, moa, created_at, title_number, survey_number, lot_number, barangay_name, total_area, land_status, problem_category, sub_category, remarks, exif_data, land_image_url')
       .eq('id', area.id)
       .single();
     
@@ -784,7 +784,7 @@ const Home: React.FC = () => {
     if (error && error.code === 'PGRST116') {
       const fallbackResult = await supabase
         .from('land_areas')
-        .select('id, lhid, lo_name, moa, created_at, title_number, survey_number, lot_number, barangay_name, total_area, current_status, current_status_desc, problem_category, sub_category, remarks')
+        .select('id, lhid, lo_name, moa, created_at, title_number, survey_number, lot_number, barangay_name, total_area, land_status, problem_category, sub_category, remarks')
         .eq('id', area.id)
         .single();
       if (fallbackResult.data) {
@@ -806,8 +806,7 @@ const Home: React.FC = () => {
         lotNumber: la.lot_number || '',
         barangay: la.barangay_name || '',
         totalArea: la.total_area || '',
-        status: la.current_status || '',
-        statusDesc: la.current_status_desc || '',
+        landStatus: la.land_status || 'workable',
         problemCategory: la.problem_category || '',
         subCategory: la.sub_category || '',
         remarks: la.remarks || '',
@@ -824,8 +823,7 @@ const Home: React.FC = () => {
         lotNumber: la.lot_number || '',
         barangay: la.barangay_name || '',
         totalArea: la.total_area || '',
-        status: la.current_status || '',
-        statusDesc: la.current_status_desc || '',
+        landStatus: la.land_status || 'workable',
         problemCategory: la.problem_category || '',
         subCategory: la.sub_category || '',
         remarks: la.remarks || ''
@@ -840,7 +838,7 @@ const Home: React.FC = () => {
   const openEditLandInfo = async (area: any) => {
     const { data: la, error } = await supabase
       .from('land_areas')
-      .select('id, lhid, lo_name, moa, path, title_number, survey_number, lot_number, barangay_name, total_area, current_status, current_status_desc, problem_category, sub_category, remarks')
+      .select('id, lhid, lo_name, moa, path, title_number, survey_number, lot_number, barangay_name, total_area, land_status, problem_category, sub_category, remarks')
       .eq('id', area.id)
       .single();
     if (la && !error) {
@@ -855,8 +853,7 @@ const Home: React.FC = () => {
         lotNumber: la.lot_number || '',
         barangay: la.barangay_name || '',
         totalArea: la.total_area || '',
-        status: la.current_status || '',
-        statusDesc: la.current_status_desc || '',
+        landStatus: la.land_status || 'workable',
         problemCategory: la.problem_category || '',
         subCategory: la.sub_category || '',
         remarks: la.remarks || ''
@@ -1168,8 +1165,8 @@ const Home: React.FC = () => {
             <div style={{ padding: 16, background: 'linear-gradient(135deg, #2E7D32 0%, #388E3C 100%)', color: '#FFD700', borderTopLeftRadius: 8, borderTopRightRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
               <div style={{ fontWeight: 700 }}>Land Information</div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                {viewFields.status && (
-                  <span style={{ background: '#1b5e20', color: '#FFD700', padding: '4px 8px', borderRadius: 12, fontSize: 12 }}>{viewFields.status}</span>
+                {viewFields.landStatus && (
+                  <span style={{ background: '#1b5e20', color: '#FFD700', padding: '4px 8px', borderRadius: 12, fontSize: 12 }}>{viewFields.landStatus}</span>
                 )}
                 {viewFields.problemCategory && (
                   <span style={{ background: '#33691e', color: '#FFD700', padding: '4px 8px', borderRadius: 12, fontSize: 12 }}>{viewFields.problemCategory}</span>
@@ -1209,7 +1206,9 @@ const Home: React.FC = () => {
                   <div><div style={{ fontSize: 12, color: '#666' }}>Lot #</div><div style={{ fontWeight: 600 }}>{viewFields.lotNumber || '-'}</div></div>
                   <div><div style={{ fontSize: 12, color: '#666' }}>Barangay</div><div style={{ fontWeight: 600 }}>{viewFields.barangay || '-'}</div></div>
                   <div><div style={{ fontSize: 12, color: '#666' }}>Total Area</div><div style={{ fontWeight: 600 }}>{viewFields.totalArea || '-'}</div></div>
-                  <div style={{ gridColumn: '1 / span 2' }}><div style={{ fontSize: 12, color: '#666' }}>Status Desc</div><div style={{ fontWeight: 600 }}>{viewFields.statusDesc || '-'}</div></div>
+                  <div><div style={{ fontSize: 12, color: '#666' }}>Land Status</div><div style={{ fontWeight: 600 }}>{viewFields.landStatus || 'workable'}</div></div>
+                  <div><div style={{ fontSize: 12, color: '#666' }}>Problem Category</div><div style={{ fontWeight: 600 }}>{viewFields.problemCategory || '-'}</div></div>
+                  <div><div style={{ fontSize: 12, color: '#666' }}>Sub Category</div><div style={{ fontWeight: 600 }}>{viewFields.subCategory || '-'}</div></div>
                   <div style={{ gridColumn: '1 / span 2' }}><div style={{ fontSize: 12, color: '#666' }}>Remarks</div><div style={{ fontWeight: 600 }}>{viewFields.remarks || '-'}</div></div>
                   {viewFields.createdAt && (
                     <div style={{ gridColumn: '1 / span 2', fontSize: 12, color: '#666' }}>Added At: {new Date(viewFields.createdAt).toLocaleString()}</div>
@@ -1251,9 +1250,17 @@ const Home: React.FC = () => {
                   <IonInput label="Lot #" labelPlacement="stacked" value={editFields.lotNumber} onIonChange={e => setEditFields((p: any) => ({ ...p, lotNumber: e.detail.value! }))} />
                   <IonInput label="Barangay" labelPlacement="stacked" value={editFields.barangay} onIonChange={e => setEditFields((p: any) => ({ ...p, barangay: e.detail.value! }))} />
                   <IonInput label="Total Area" labelPlacement="stacked" value={editFields.totalArea} inputmode="decimal" onIonChange={e => setEditFields((p: any) => ({ ...p, totalArea: e.detail.value! }))} />
-                  <IonInput label="Status" labelPlacement="stacked" value={editFields.status} onIonChange={e => setEditFields((p: any) => ({ ...p, status: e.detail.value! }))} />
-                  <IonInput label="Status Desc" labelPlacement="stacked" value={editFields.statusDesc} onIonChange={e => setEditFields((p: any) => ({ ...p, statusDesc: e.detail.value! }))} />
-                  <IonInput label="Problem Category" labelPlacement="stacked" value={editFields.problemCategory} onIonChange={e => setEditFields((p: any) => ({ ...p, problemCategory: e.detail.value! }))} />
+                  <IonSelect label="Land Status" labelPlacement="stacked" value={editFields.landStatus || 'workable'} onIonChange={e => setEditFields((p: any) => ({ ...p, landStatus: e.detail.value }))}>
+                    <IonSelectOption value="workable">Workable</IonSelectOption>
+                    <IonSelectOption value="problematic">Problematic</IonSelectOption>
+                  </IonSelect>
+                  <IonSelect label="Problem Category" labelPlacement="stacked" value={editFields.problemCategory} onIonChange={e => setEditFields((p: any) => ({ ...p, problemCategory: e.detail.value }))}>
+                    <IonSelectOption value="">None</IonSelectOption>
+                    <IonSelectOption value="Document Infirmities">Document Infirmities</IonSelectOption>
+                    <IonSelectOption value="Land Owner Issues">Land Owner Issues</IonSelectOption>
+                    <IonSelectOption value="Peace and Order Problem">Peace and Order Problem</IonSelectOption>
+                    <IonSelectOption value="VLT Problems">VLT Problems</IonSelectOption>
+                  </IonSelect>
                   <IonInput label="Sub Category" labelPlacement="stacked" value={editFields.subCategory} onIonChange={e => setEditFields((p: any) => ({ ...p, subCategory: e.detail.value! }))} />
                   <IonInput label="Remarks" labelPlacement="stacked" value={editFields.remarks} onIonChange={e => setEditFields((p: any) => ({ ...p, remarks: e.detail.value! }))} />
                 </div>
@@ -1290,8 +1297,7 @@ const Home: React.FC = () => {
                       lot_number: editFields.lotNumber ?? null,
                       barangay_name: editFields.barangay ?? null,
                       total_area: editFields.totalArea ?? null,
-                      current_status: editFields.status ?? null,
-                      current_status_desc: editFields.statusDesc ?? null,
+                      land_status: editFields.landStatus ?? 'workable',
                       problem_category: editFields.problemCategory ?? null,
                       sub_category: editFields.subCategory ?? null,
                       remarks: editFields.remarks ?? null,
@@ -1396,8 +1402,7 @@ const Home: React.FC = () => {
                   lot_number: editFields.lotNumber,
                   barangay_name: editFields.barangay,
                   total_area: editFields.totalArea,
-                  current_status: editFields.status,
-                  current_status_desc: editFields.statusDesc,
+                  land_status: editFields.landStatus || 'workable',
                   problem_category: editFields.problemCategory,
                   sub_category: editFields.subCategory,
                   remarks: editFields.remarks,

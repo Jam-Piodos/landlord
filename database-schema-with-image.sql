@@ -15,8 +15,6 @@ CREATE TABLE IF NOT EXISTS public.land_areas (
   total_area text NULL,
   survey_number text NULL,
   lot_number text NULL,
-  current_status text NULL,
-  current_status_desc text NULL,
   problem_category text NULL,
   sub_category text NULL,
   remarks text NULL,
@@ -27,6 +25,21 @@ CREATE TABLE IF NOT EXISTS public.land_areas (
   CONSTRAINT land_areas_user_id_fkey FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE,
   CONSTRAINT land_areas_land_status_check CHECK (
     (land_status = ANY (ARRAY['workable'::text, 'problematic'::text]))
+  ),
+  CONSTRAINT land_areas_problem_category_check CHECK (
+    (
+      (problem_category IS NULL)
+      OR (
+        problem_category = ANY (
+          ARRAY[
+            'Document Infirmities'::text,
+            'Land Owner Issues'::text,
+            'Peace and Order Problem'::text,
+            'VLT Problems'::text
+          ]
+        )
+      )
+    )
   )
 ) TABLESPACE pg_default;
 
@@ -40,8 +53,8 @@ CREATE INDEX IF NOT EXISTS land_areas_created_at_idx
 CREATE INDEX IF NOT EXISTS land_areas_barangay_idx 
   ON public.land_areas USING btree (barangay_name) TABLESPACE pg_default;
 
-CREATE INDEX IF NOT EXISTS land_areas_status_idx 
-  ON public.land_areas USING btree (current_status) TABLESPACE pg_default;
+CREATE INDEX IF NOT EXISTS land_areas_problem_category_idx 
+  ON public.land_areas USING btree (problem_category) TABLESPACE pg_default;
 
 -- Index on EXIF data for GPS coordinates queries
 CREATE INDEX IF NOT EXISTS land_areas_exif_data_idx 
